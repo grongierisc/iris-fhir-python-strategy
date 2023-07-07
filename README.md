@@ -4,6 +4,8 @@
 
 With InterSystems IRIS FHIR Server you can build a Strategy to customize the behavior of the server (see [documentation](https://docs.intersystems.com/irisforhealth20231/csp/docbook/DocBook.UI.Page.cls?KEY=HXFHIR_server_customize_arch) for more details).
 
+![Image](https://github.com/intersystems-ib/workshop-healthcare-interop/raw/main/img/fhirserver.png)
+
 This repository contains a Python Strategy that can be used as a starting point to build your own Strategy in python.
 
 This demo strategy provides the following features:
