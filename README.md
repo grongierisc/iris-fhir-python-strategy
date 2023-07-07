@@ -7,6 +7,11 @@ GET http://localhost:8083/fhir/r4/metadata
 Accept: application/json+fhir
 ```
 
+```http
+GET http://localhost:8083/fhir/r4/Account
+Accept: application/json+fhir
+```
+
 ### Get a patient from EAI
 
 ```http
