@@ -3,9 +3,8 @@ from FhirInteraction import Interaction, Strategy
 class CustomStrategy(Strategy):
     
     def on_get_capability_statement(self, capability_statement):
-        # Example : del all resources except Patient
-        # capability_statement['rest'][0]['resource'] = [resource for resource in capability_statement['rest'][0]['resource'] if resource['type'] == 'Patient']
-        # if so is done, the fhir server will only support Patient resource
+        # Example : del resources Account
+        capability_statement['rest'][0]['resource'] = [resource for resource in capability_statement['rest'][0]['resource'] if resource['type'] != 'Account']
         return capability_statement
 
 class CustomInteraction(Interaction):
