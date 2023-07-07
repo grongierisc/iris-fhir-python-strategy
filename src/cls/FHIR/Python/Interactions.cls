@@ -66,7 +66,11 @@ Method PostProcessRead(pResourceObject As %DynamicObject) As %Boolean
 	// Return 1 to indicate that the resource should be included in the response.
 	// Return 0 to indicate that the resource should be excluded from the response.
 	if $ISOBJECT(..PythonClass) {
-		return ..PythonClass."post_process_read"(pResourceObject)
+		if pResourceObject '= "" {
+			set jsonLib = ##class(%SYS.Python).Import("json")
+			set body = jsonLib.loads(pResourceObject.%ToJSON())
+		}
+		return ..PythonClass."post_process_read"(body)
 	}
 	quit 1
 }

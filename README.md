@@ -10,9 +10,22 @@ Accept: application/json+fhir
 ### Get a patient from EAI
 
 ```http
-GET http://localhost:8083/fhir/r4/Patient?name=elbert
+GET http://localhost:8083/fhir/r4/Patient/178/$everything
 Content-Type: application/json+fhir
 Accept: application/json+fhir
+```
+
+```http
+GET http://localhost:8083/fhir/r4/Observation
+Content-Type: application/json+fhir
+Accept: application/json+fhir
+```
+
+```http
+GET http://localhost:8083/fhir/r4/Observation
+Content-Type: application/json+fhir
+Accept: application/json+fhir
+Authorization: Basic U3VwZXJVc2VyOlNZUw==
 ```
 
 ### Post an Organisation from EAI
