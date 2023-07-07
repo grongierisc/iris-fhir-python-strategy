@@ -1,0 +1,32 @@
+{
+    "endpoint_url": "/bulk/fhir/",
+    "name": "HAPI Organization",
+    "core_fhir_package": "hl7.fhir.r4.core@4.0.1",
+    "max_file_size": 1000000000,
+    "flush_interval_mins": 60,
+    "auto_start": true,
+    "patient_export": true,
+    "group_export": true,
+    "system_export": true,
+    "expire_after_mins": 1440,
+    "fetch_adapter": "HS.BulkFHIR.Fetch.PureFHIR.Adapter",
+    "fetch_config": {
+        "endpoint_url": "http://hapifhirorganization:8080/fhir/",
+        "ssl_configuration": "BFC_SSL",
+        "resource_types": [
+            "Organization"
+        ],
+        "max_req_per_sec": 10,
+        "http_timeout": 180,
+        "x_api_key_credential_id": "HS_Services",
+        "worker_jobs": 4
+    },
+    "auth_adapter": "HS.BulkFHIR.Auth.BasicAuth.Adapter",
+    "auth_config": {},
+    "storage_adapter": "HS.BulkFHIR.Storage.File.Adapter",
+    "storage_config": {
+        "file_url": "/file",
+        "directory": "/usr/irissys/mgr/Temp/BulkFHIR/FHIRSERVER/"
+    },
+    "working_directory": "/tmp"
+}

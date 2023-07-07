@@ -1,0 +1,43 @@
+    zn "%SYS"
+    do ##class(Security.Users).UnExpireUserPasswords("*")
+
+    do ##class(Security.Services).Get("%Service_CallIn",.prop)
+    set prop("Enabled")=1
+    set prop("AutheEnabled")=48
+    do ##class(Security.Services).Modify("%Service_CallIn",.prop)
+
+    zn "HSLIB"
+
+    // Enable FHIR SQL Builder
+    Do ##class(HS.HC.FHIRSQL.Utils.Setup).CreateWebApps("HSSYS",1)
+	Do ##class(HS.HC.FHIRSQL.Utils.Setup).DefineDocDBs("HSSYS")
+
+    set namespace="FHIRSERVER"
+    Set appKey = "/fhir/r4"
+    Set strategyClass = "FHIR.Python.InteractionsStrategy"
+    set metadataPackages = $lb("hl7.fhir.r4.core@4.0.1")
+
+    //Install a Foundation namespace and change to it
+    Do ##class(HS.HC.Util.Installer).InstallFoundation(namespace)
+    zn namespace
+
+    Do $classMethod("HS.HC.FHIRSQL.Server.FHIRRepository","SetupInteractions")
+
+    // load classes
+    do $system.OBJ.ImportDir("/irisdev/app/src/cls","*.cls","cdk",.errors,1)
+
+    // Install elements that are required for a FHIR-enabled namespace
+    Do ##class(HS.FHIRServer.Installer).InstallNamespace()
+
+    // Install an instance of a FHIR Service into the current namespace
+    Do ##class(HS.FHIRServer.Installer).InstallInstance(appKey, strategyClass, metadataPackages)
+
+    // Configure FHIR Service instance to accept unauthenticated requests
+    set strategy = ##class(HS.FHIRServer.API.InteractionsStrategy).GetStrategyForEndpoint(appKey)
+    set config = strategy.GetServiceConfigData()
+    set config.DebugMode = 6 // 4=unauthenticated, 6=unauthenticated+reload services
+    set config.MaxSearchResults = 100000
+    do strategy.SaveServiceConfigData(config)
+
+    do ##class(HS.FHIRServer.Tools.DataLoader).SubmitResourceFiles("/irisdev/app/data/fhir", "FHIRSERVER", "/fhir/r4")
+    halt
