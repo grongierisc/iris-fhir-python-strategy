@@ -99,7 +99,6 @@ Method SetInstance(
 	pBaseURL As %String = "",
 	pUsername As %String = "")
 {
-	Do ..ClearInstance()
 	
 	If pTokenString '= "" {
 		
@@ -171,19 +170,7 @@ Method IsExpiredOrInactive(
 		Set expiredOrInactive = 1
 		
 	} Else {
-		If '..IsIntroCached(pLastIntrospectionTime) {
-			Set introStatus = ..GetIntrospection()
-			
-			If $$$ISOK(introStatus) {
-				Set pLastIntrospectionTime = ..TimeInSeconds($ztimestamp, 0)
-				
-			} Else {
-				Set pHTTPStatus = 401
-				Set pFailReasonText = $system.Status.GetErrorText(introStatus)
-				Set expiredOrInactive = 1
-				
-			}
-		}
+		Set pLastIntrospectionTime = ..TimeInSeconds($ztimestamp, 0)
 	}
 	
 	Return expiredOrInactive
@@ -224,9 +211,10 @@ Method ValidateToken() [ Private ]
 		$$$ThrowFHIR($$$HttpOnlyResponse(403))
 	}
 	
-	$$$FSLog("AlreadyValidated=" _ ..#AlreadyValidated)
+	$$$FSLog("LastIntrospectionTime=" _ ..%LastIntrospectionTime)
+	$$$FSLog("AlreadyValidated=" _ ..IsIntroCached(..%LastIntrospectionTime))
 	
-	If '..#AlreadyValidated {
+	If '..IsIntroCached(..%LastIntrospectionTime) {
 		// ValidateJWT() verifies that the token is sensical as a JWT and returns an
 		// indication that it is signed. As of 2021.1, a JWT returned by ValidateJWT()
 		// by default does NOT include scope information.
@@ -240,68 +228,16 @@ Method ValidateToken() [ Private ]
 		// Verify aud and sub now, using the JWT returned by ValidateJWT().
 		Set ..%TokenObject = JWTObj
 		
-		// Validate the audience against our BaseURL.
-		#; If '..ValidateAudience() {
-		#; 	$$$FSLog("Wrong Audience: '" _ $Select($IsObject(JWTObj.aud):JWTObj.aud.%ToJSON(),1:JWTObj.aud) _ "' for " _ ..%BaseURL)
-		#; 	$$$ThrowFHIR($$$HttpOnlyResponse(401))
-		#; }
-		
 		// Validate the sub.
 		If '..ValidateSub() {
 			$$$FSLog("Token sub '" _ JWTObj.sub _ "' failed validation")
 			$$$ThrowFHIR($$$HttpOnlyResponse(401))
 		}
+
+		// Set it to the cached value.
+		Set ..%LastIntrospectionTime = ..TimeInSeconds($ztimestamp, 0)
 	}
-	
-	// This GetIntrospection remains unconditional, because we need the object that it returns.
-	Set introStatus = ..GetIntrospection(.introJWTObj)
-	
-	$$$FSLog("GetIntrospection returned status = " _ $Select($$$ISERR(introStatus):$system.Status.GetErrorText(introStatus), 1:1))
-	$$$FSLog("GetIntrospection returned JSON = " _ $Select($IsObject($Get(introJWTObj)):introJWTObj.%ToJSON(), 1:$Get(introJWTObj)))
-	
-	If $$$ISERR(introStatus) {
-		$$$FSLog($system.Status.GetErrorText(introStatus))
-		$$$ThrowFHIR($$$HttpOnlyResponse(401))
-		
-	} ElseIf $IsObject($Get(introJWTObj)) {
-		// Guard against customization returning object without active.
-		If introJWTObj.active {
-			Set ..%TokenObject = introJWTObj
-			Set ..%LastIntrospectionTime = ..TimeInSeconds($ztimestamp, 0)
-			
-		} Else {
-			$$$FSLog("Invalid or inactive OAuth AccessToken")
-			$$$ThrowFHIR($$$HttpOnlyResponse(401))
-		}
-		
-	} Else {
-		$$$FSLog("No token object returned by GetIntrospection")
-		$$$ThrowFHIR($$$HttpOnlyResponse(401))
-	}
-	
-	Do ..SetScopes()
-	
-	Do ..SetContextValues()
-	
-	// Ensure that the scopes and context are reasonably sensical.
-	// - Must have at least one scope.
-	// - Must have at least one patient or user clinical scope.
-	// - If patient context is present, then at least one patient clinical scope must also be present.
-	// - If a patient clinical scope is present, then patient context must also be present.
-	
-	If ..%ScopesList = "" {
-		$$$FSLog("No scopes found in access token")
-		$$$ThrowFHIR($$$HttpOnlyResponse(403))
-	} ElseIf '($Data(..%ClinicalScopes("patient")) || $Data(..%ClinicalScopes("user"))) {
-		$$$FSLog("No patient or user clinical scopes found in access token")
-		$$$ThrowFHIR($$$HttpOnlyResponse(403))
-	} ElseIf ($Data(..%ClinicalScopes("patient"))) && ('$Data(..%ContextValues("patient"))) {
-		$$$FSLog("No patient context provided for patient clinical scope in access token")
-		$$$ThrowFHIR($$$HttpOnlyResponse(403))
-	} ElseIf ('$Data(..%ClinicalScopes("patient"))) && ($Data(..%ContextValues("patient"))) {
-		$$$FSLog("No patient clinical scope provided for patient context in access token")
-		$$$ThrowFHIR($$$HttpOnlyResponse(403))
-	}
+
 	
 	Return
 }
