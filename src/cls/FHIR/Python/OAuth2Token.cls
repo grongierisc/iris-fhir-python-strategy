@@ -3,6 +3,45 @@ Include HS.FHIRServer
 Class FHIR.Python.OAuth2Token Extends (HS.FHIRServer.API.OAuth2Token, FHIR.Python.Helper)
 {
 
+Method TokenStringGet() As %String [ CodeMode = expression ]
+{
+..PythonClass."token_string"
+}
+
+Method OAuthClientGet() As %String [ CodeMode = expression ]
+{
+..PythonClass."oauth_client"
+}
+
+Method BaseURLGet() As %String [ CodeMode = expression ]
+{
+..PythonClass."base_url"
+}
+
+Method UsernameGet() As %String [ CodeMode = expression ]
+{
+..PythonClass."username"
+}
+
+Method TokenObjectGet() As %String [ CodeMode = expression ]
+{
+..PythonClass."token_object"
+}
+
+Method ScopesListGet() As %String
+{
+	set tScopesList = $lb()
+	for i=1:1:..PythonClass."scopes_list".Count() {
+		set tScopesList = tScopesList_$lb(..PythonClass."scopes_list".GetAt(i))
+	}
+	return tScopesList
+}
+
+Method VerifySearchResultsGet() As %Boolean [ CodeMode = expression ]
+{
+..PythonClass."verify_search_results"
+}
+
 Method %OnNew(pSchema As HS.FHIRServer.Schema) As %Status
 {
 	// %OnNew is called when the object is created.
@@ -16,9 +55,8 @@ Method %OnNew(pSchema As HS.FHIRServer.Schema) As %Status
 	set ..PythonModule = $system.Util.GetEnviron("OAUTH_MODULE")
 
 	if (..PythonPath = "") || (..PythonClassname = "") || (..PythonModule = "") {
-		//quit ##super(pStrategy)
 		set ..PythonPath = "/irisdev/app/src/python/"
-		set ..PythonClassname = "OauthInteraction"
+		set ..PythonClassname = "CustomOAuthInteraction"
 		set ..PythonModule = "custom"
 	}
 
@@ -43,7 +81,14 @@ Method SetInstance(
 	pUsername As %String = "")
 {
 	if $ISOBJECT(..PythonClass) {
-		do ..PythonClass."set_instance"(pTokenString, pOAuthClient, pBaseURL, pUsername)
+		Try {
+			do ..PythonClass."set_instance"(pTokenString, pOAuthClient, pBaseURL, pUsername)
+		}
+		Catch ex {
+			$$$FSLog($system.Status.GetOneStatusText(ex.AsStatus()))
+			throw ##class(%Exception.SystemException).%New("Token is invalid")
+		}
+		
 	}
 }
 
@@ -79,10 +124,12 @@ Method GetUserInfo(
 	Output pUserInfo)
 {
 	if $ISOBJECT(..PythonClass) {
-		set tUserInfoList = ..PythonClass."get_user_info"(pBAUsername, pBARoles)
-		for i=1:1:tUserInfoList.Count() {
-			// TODO
-			// What can be the structure of the list?
+		set builtins = ##class(%SYS.Python).Builtins()
+		set tInfoDict = ..PythonClass."get_user_info"(pBAUsername, pBARoles)
+		for i=0:1:builtins.len(tInfoDict)-1 {
+			set tKey = builtins.list(tInfoDict.keys())."__getitem__"(i)
+			set tValue = tInfoDict."__getitem__"(tKey)
+			set pUserInfo(tKey) = tValue
 		}
 	}
 	quit $$$OK

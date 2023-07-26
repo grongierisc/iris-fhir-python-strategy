@@ -13,20 +13,42 @@ class CustomOAuthInteraction(OAuthInteraction):
     
     client_id = None
 
+    def clear_instance(self):
+        self.token_string = None
+        self.oauth_client = None
+        self.base_url = None
+        self.username = None
+        self.token_obj = None
+        self.scopes = None
+        self.verify_search_results = None
+
     def set_instance(self, token:str,oauth_client:str,base_url:str,username:str):
+
+        self.clear_instance()
+
+        self.token_string = token
+        self.oauth_client = oauth_client
+        self.base_url = base_url
+        self.username = username
+
         # try to set the client id
         try:
-            # first by the environment variable GOOGLE_CLIENT_ID
-            self.client_id = os.environ['GOOGLE_CLIENT_ID']
+            # first get the var env GOOGLE_CLIENT_ID is not set then None
+            self.client_id = os.environ.get('GOOGLE_CLIENT_ID')
             # if not set, then by the secret.json file
             if not self.client_id:
-                with open(os.environ['ISC_OAUTH_SECRET_PATH'],encoding='utf-8') as f:
+                with open(os.environ.get('ISC_OAUTH_SECRET_PATH'),encoding='utf-8') as f:
                     data = json.load(f)
                     self.client_id = data['web']['client_id']
         except FileNotFoundError:
             pass
 
-        self.verify_token(token)
+        try:
+            self.verify_token(token)
+        except Exception as e:
+            self.clear_instance()
+            raise e
+
 
     def verify_token(self,token:str):
         # check if the token is an access token or an id token
@@ -37,8 +59,13 @@ class CustomOAuthInteraction(OAuthInteraction):
 
     def verify_access_token(self,token:str):
         # verify the access token is valid
-        response = rq.get(f"https://www.googleapis.com/oauth2/v3/tokeninfo?access_token={token}")
-        response.raise_for_status()
+        # get with a timeout of 5 seconds
+        response = rq.get(f"https://www.googleapis.com/oauth2/v3/tokeninfo?access_token={token}",timeout=5)
+        try:
+            response.raise_for_status()
+        except rq.exceptions.HTTPError as e:
+            # the token is not valid
+            raise e
 
     def verify_id_token(self,token:str):
         # Verify the token and get the user info
@@ -49,8 +76,8 @@ class CustomOAuthInteraction(OAuthInteraction):
     def get_introspection(self)->dict:
         return {}
     
-    def get_user_info(self,basic_auth_username:str,basic_auth_roles:str)->list:
-        return []
+    def get_user_info(self,basic_auth_username:str,basic_auth_roles:str)->dict:
+        return {"Username":basic_auth_username,"Roles":basic_auth_roles}
     
     def verify_resource_id_request(self,resource_type:str,resource_id:str,required_privilege:str):
         pass
@@ -65,10 +92,11 @@ class CustomOAuthInteraction(OAuthInteraction):
         pass
 
     def verify_search_request(self,
-                                resource_type:str,
-                                resource_dict:dict,
-                                required_privilege:str,
-                                allow_shared_resource:bool):
+                              resource_type:str,
+                              compartment_resource_type:str,
+                              compartment_resource_id:str,
+                              parameters:'iris.HS.FHIRServer.API.Data.QueryParameters',
+                              required_privilege:str):
             pass
     
     def verify_system_level_request(self):

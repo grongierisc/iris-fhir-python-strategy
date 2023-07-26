@@ -4,6 +4,20 @@ import iris
 class OAuthInteraction(object):
     __metaclass__ = abc.ABCMeta
 
+    token_string:str = None
+
+    oauth_client:str = None
+
+    base_url:str = None
+
+    username:str = None
+
+    token_obj:dict = None
+
+    scopes:list = None
+
+    verify_search_results:bool = None
+
     @abc.abstractmethod
     def set_instance(self, token:str,oauth_client:str,base_url:str,username:str):
         """
@@ -26,7 +40,7 @@ class OAuthInteraction(object):
         """
 
     @abc.abstractmethod
-    def get_user_info(self,basic_auth_username:str,basic_auth_roles:str)->list:
+    def get_user_info(self,basic_auth_username:str,basic_auth_roles:str)->dict:
         """
         /// Derive user information from the current OAuth 2.0 token, and return that
         /// data if desired.<br>
