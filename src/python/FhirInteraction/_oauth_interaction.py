@@ -1,7 +1,7 @@
 import abc
 import iris
 
-class OauthInteraction(object):
+class OAuthInteraction(object):
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
