@@ -1,2 +1,2 @@
 iris-pex-embedded-python
-FhirStrategie @ https://github.com/grongierisc/iris-fhir-python-strategy/releases/download/latest/iris_fhir_interactions-0.0.1-py3-none-any.whl
+google-auth-oauthlib==1.0.0

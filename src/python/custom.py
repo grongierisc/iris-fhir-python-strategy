@@ -12,6 +12,8 @@ import json
 class CustomOAuthInteraction(OAuthInteraction):
     
     client_id = None
+    last_time_verified = None
+    time_interval = 5
 
     def clear_instance(self):
         self.token_string = None
@@ -25,6 +27,18 @@ class CustomOAuthInteraction(OAuthInteraction):
     def set_instance(self, token:str,oauth_client:str,base_url:str,username:str):
 
         self.clear_instance()
+
+        if not token or not oauth_client:
+            # the token or oauth client is not set, skip the verification
+            return
+
+        global_time = iris.gref('^FHIR.OAuth2.Time')
+        if global_time[token[0:50]]:
+            self.last_time_verified = global_time[token[0:50]]
+
+        if self.last_time_verified and (time.time() - self.last_time_verified) < self.time_interval:
+            # the token was verified less than 5 seconds ago, skip the verification
+            return
 
         self.token_string = token
         self.oauth_client = oauth_client
@@ -48,7 +62,8 @@ class CustomOAuthInteraction(OAuthInteraction):
         except Exception as e:
             self.clear_instance()
             raise e
-
+        # token is valid, set the last time verified to now
+        global_time[token[0:50]]=time.time()
 
     def verify_token(self,token:str):
         # check if the token is an access token or an id token
