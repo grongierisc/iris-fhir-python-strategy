@@ -78,7 +78,7 @@ returns :
 5. Open get a patient without authentication (you shouldn't have access to Observation)
 
 ```http
-GET http://localhost:8083/fhir/r4/Observation?patient.name=Carroll471
+GET http://localhost:8083/fhir/r4/Patient/3/$everything
 Content-Type: application/json+fhir
 Accept: application/json+fhir
 ```
@@ -104,7 +104,7 @@ returns :
 6. Open get a patient with authentication (you should have access to Observation)
 
 ```http
-GET http://localhost:8083/fhir/r4/Observation?patient.name=Carroll471
+GET http://localhost:8083/fhir/r4/Patient/3/$everything
 Content-Type: application/json+fhir
 Accept: application/json+fhir
 Authorization: Basic U3VwZXJVc2VyOlNZUw==

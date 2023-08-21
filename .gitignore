@@ -136,3 +136,4 @@ dmypy.json
 *.pyo
 *.pyd
 __pycache__/
+misc/auth/secret.json

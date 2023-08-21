@@ -1,0 +1,28 @@
+FROM httpd
+LABEL maintainer="Guillaume Rongier <guillaume.rongier@intersystems.com>"
+
+# Varaibles
+ENV _HTTPD_DIR /usr/local/apache2
+
+# Generate self signed certificate
+RUN apt-get update
+RUN apt-get install openssl
+RUN openssl req -x509 -nodes -days 1 -newkey rsa:2048 -subj /CN=* -keyout /usr/local/apache2/conf/server.key -out /usr/local/apache2/conf/server.crt
+
+# Loading modules for httpd
+RUN sed -i 's,^#\(LoadModule proxy_module modules/mod_proxy.so\)$,\1,' $_HTTPD_DIR/conf/httpd.conf
+RUN sed -i 's,^#\(LoadModule proxy_http_module modules/mod_proxy_http.so\)$,\1,' $_HTTPD_DIR/conf/httpd.conf
+RUN sed -i 's,^#\(LoadModule ssl_module modules/mod_ssl.so\)$,\1,' $_HTTPD_DIR/conf/httpd.conf
+RUN sed -i 's,^#\(LoadModule socache_shmcb_module modules/mod_socache_shmcb.so\)$,\1,' $_HTTPD_DIR/conf/httpd.conf
+RUN sed -i 's,^#\(Include conf/extra/httpd-ssl.conf\)$,\1,' $_HTTPD_DIR/conf/httpd.conf
+
+#Enable webgateway
+COPY --from=containers.intersystems.com/intersystems/webgateway:2021.2.0.651.0 /opt/webgateway/bin/ /opt/webgateway/bin
+
+COPY httpd-csp.conf $_HTTPD_DIR/conf/extra
+COPY --chown=www-data:www-data CSP.ini /opt/webgateway/bin/CSP.ini
+
+RUN echo "Include conf/extra/httpd-csp.conf" >> $_HTTPD_DIR/conf/httpd.conf \
+ && mkdir -p /opt/webgateway/csp \ 
+ && chown -R www-data:www-data /opt/webgateway \
+ && chgrp -R daemon $_HTTPD_DIR/conf/extra/httpd-csp.conf
