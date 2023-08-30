@@ -7,7 +7,7 @@ class Interaction(object):
     @abc.abstractmethod
     def on_before_request(self, 
                           fhir_service:'iris.HS.FHIRServer.API.Service',
-                          fhir_request:'iris.FHIRServer.API.Data.Request',
+                          fhir_request:'iris.HS.FHIRServer.API.Data.Request',
                           body:dict,
                           timeout:int):
         """
@@ -22,8 +22,8 @@ class Interaction(object):
     @abc.abstractmethod
     def on_after_request(self,
                          fhir_service:'iris.HS.FHIRServer.API.Service',
-                         fhir_request:'iris.FHIRServer.API.Data.Request',
-                         fhir_response:'iris.FHIRServer.API.Data.Response',
+                         fhir_request:'iris.HS.FHIRServer.API.Data.Request',
+                         fhir_response:'iris.HS.FHIRServer.API.Data.Response',
                          body:dict):
         """
         on_after_request is called after the request is sent to the server.
