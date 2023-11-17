@@ -1,6 +1,15 @@
-# iris-fhir-python-strategy
+# 1. iris-fhir-python-strategy
 
-## Description
+- [1. iris-fhir-python-strategy](#1-iris-fhir-python-strategy)
+  - [1.1. Description](#11-description)
+  - [1.2. Installation](#12-installation)
+    - [1.2.1. Prerequisites](#121-prerequisites)
+    - [1.2.2. Installation steps](#122-installation-steps)
+  - [1.3. Consent](#13-consent)
+  - [1.4. Custom CapabilityStatement](#14-custom-capabilitystatement)
+  - [1.5. How iris-fhir-python-strategy works](#15-how-iris-fhir-python-strategy-works)
+
+## 1.1. Description
 
 With InterSystems IRIS FHIR Server you can build a Strategy to customize the behavior of the server (see [documentation](https://docs.intersystems.com/irisforhealth20231/csp/docbook/DocBook.UI.Page.cls?KEY=HXFHIR_server_customize_arch) for more details).
 
@@ -15,15 +24,15 @@ This demo strategy provides the following features:
   - If the User has sufficient rights, the `Observation` resource is returned
   - Otherwise, the `Observation` resource is not returned
 
-## Installation
+## 1.2. Installation
 
-### Prerequisites
+### 1.2.1. Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/)
 - [Docker Compose](https://docs.docker.com/compose/install/)
 - [Git](https://git-scm.com/downloads)
 
-### Installation steps
+### 1.2.2. Installation steps
 
 1. Clone this repository
 
@@ -78,7 +87,7 @@ returns :
 5. Open get a patient without authentication (you shouldn't have access to Observation)
 
 ```http
-GET http://localhost:8083/fhir/r4/Patient/3/$everything
+GET http://localhost:8089/fhir/r4/Patient/3/$everything
 Content-Type: application/json+fhir
 Accept: application/json+fhir
 ```
@@ -104,7 +113,7 @@ returns :
 6. Open get a patient with authentication (you should have access to Observation)
 
 ```http
-GET http://localhost:8083/fhir/r4/Patient/3/$everything
+GET http://localhost:8089/fhir/r4/Patient/3/$everything
 Content-Type: application/json+fhir
 Accept: application/json+fhir
 Authorization: Basic U3VwZXJVc2VyOlNZUw==
@@ -144,7 +153,7 @@ returns :
 
 More details on a next section about Consent.
 
-## Consent
+## 1.3. Consent
 
 The consent management system is simulated by the `consent` method in the `CustomInteraction` class in the `custom` module.
 
@@ -282,7 +291,7 @@ Other behaviors can be implemented by overriding the `Interaction` classes.
 
 - WIP
 
-## Custom CapabilityStatement
+## 1.4. Custom CapabilityStatement
 
 IRIS FHIR Server provides a default CapabilityStatement based on the Implementation Guide guiven at installation time.
 
@@ -332,3 +341,210 @@ cd /irisdev/app/src/python
 >>> import custom
 >>> custom.set_capability_statement()
 ```
+
+
+## 1.5. How iris-fhir-python-strategy works
+
+First of all, we have to understand how IRIS FHIR Server works.
+
+Every IRIS FHIR Server implement a `Strategy`.
+
+A `Strategy` is a set of two classes :
+
+| Superclass | Subclass Parameters |
+| ---------- | ------------------- |
+| HS.FHIRServer.API.InteractionsStrategy |     StrategyKey — Specifies a unique identifier for the InteractionsStrategy.<br>    InteractionsClass — Specifies the name of your Interactions subclass.|
+| HS.FHIRServer.API.RepoManager |     StrategyClass — Specifies the name of your InteractionsStrategy subclass.<br>    StrategyKey — Specifies a unique identifier for the InteractionsStrategy. Must match the StrategyKey parameter in the InteractionsStrategy subclass.|
+
+Both classes are `Abstract` classes.
+
+- `HS.FHIRServer.API.InteractionsStrategy` is an `Abstract` class that must be implemented to customize the behavior of the FHIR Server.
+- `HS.FHIRServer.API.RepoManager` is an `Abstract` class that must be implemented to customize the storage of the FHIR Server.
+
+For our example, we will only focus on the `HS.FHIRServer.API.InteractionsStrategy` class even if the `HS.FHIRServer.API.RepoManager` class is also implemented and mandatory to customize the FHIR Server.
+The `HS.FHIRServer.API.RepoManager` class is implemented by `HS.FHIRServer.Storage.Json.RepoManager` class, which is the default implementation of the FHIR Server.
+
+All source code can be found in the `src` folder.
+The `src` folder contains the following folders :
+- `python` : contains the python code
+- `cls` : contains the ObjectScript code that is used to call the python code
+
+In this proof of concept, we will only be interested in how to implement a `Strategy` in Python, not how to implement a `RepoManager`.
+
+To implement a `Strategy` you need to create at least two classes :
+
+- A class that inherits from `HS.FHIRServer.API.InteractionsStrategy` class
+- A class that inherits from `HS.FHIRServer.API.Interactions` class
+
+`HS.FHIRServer.API.InteractionsStrategy` class aim to customize the behavior of the FHIR Server by overriding the following methods :
+
+- `GetMetadataResource` : called to get the metadata of the FHIR Server
+  - this is the only method we will override in this proof of concept
+
+`HS.FHIRServer.API.InteractionsStrategy` has also two parameters :
+
+- `StrategyKey` : a unique identifier for the InteractionsStrategy
+- `InteractionsClass` : the name of your Interactions subclass
+
+`HS.FHIRServer.API.Interactions` class aim to customize the behavior of the FHIR Server by overriding the following methods :
+
+- `OnBeforeRequest` : called before the request is sent to the server
+- `OnAfterRequest` : called after the request is sent to the server
+- `PostProcessRead` : called after the read operation is done
+- `PostProcessSearch` : called after the search operation is done
+- `Read` : called to read a resource
+- `Add` : called to add a resource
+- `Update` : called to update a resource
+- `Delete` : called to delete a resource
+- and many more...
+
+We implement `HS.FHIRServer.API.Interactions` class in the `src/cls/FHIR/Python/Interactions.cls` class.
+
+```objectscript
+Class FHIR.Python.Interactions Extends (HS.FHIRServer.Storage.Json.Interactions, FHIR.Python.Helper)
+{
+
+Parameter OAuth2TokenHandlerClass As %String = "FHIR.Python.OAuth2Token";
+
+Method %OnNew(pStrategy As HS.FHIRServer.Storage.Json.InteractionsStrategy) As %Status
+{
+	// %OnNew is called when the object is created.
+	// The pStrategy parameter is the strategy object that created this object.
+	// The default implementation does nothing
+	// Frist set the python path from an env var
+	set ..PythonPath = $system.Util.GetEnviron("INTERACTION_PATH")
+	// Then set the python class name from the env var
+	set ..PythonClassname = $system.Util.GetEnviron("INTERACTION_CLASS")
+	// Then set the python module name from the env var
+	set ..PythonModule = $system.Util.GetEnviron("INTERACTION_MODULE")
+
+	if (..PythonPath = "") || (..PythonClassname = "") || (..PythonModule = "") {
+		//quit ##super(pStrategy)
+		set ..PythonPath = "/irisdev/app/src/python/"
+		set ..PythonClassname = "CustomInteraction"
+		set ..PythonModule = "custom"
+	}
+
+
+	// Then set the python class
+	do ..SetPythonPath(..PythonPath)
+	set ..PythonClass = ##class(FHIR.Python.Interactions).GetPythonInstance(..PythonModule, ..PythonClassname)
+
+	quit ##super(pStrategy)
+}
+
+Method OnBeforeRequest(
+	pFHIRService As HS.FHIRServer.API.Service,
+	pFHIRRequest As HS.FHIRServer.API.Data.Request,
+	pTimeout As %Integer)
+{
+	// OnBeforeRequest is called before each request is processed.
+	if $ISOBJECT(..PythonClass) {
+		set body = ##class(%SYS.Python).None()
+		if pFHIRRequest.Json '= "" {
+			set jsonLib = ##class(%SYS.Python).Import("json")
+			set body = jsonLib.loads(pFHIRRequest.Json.%ToJSON())
+		}
+		do ..PythonClass."on_before_request"(pFHIRService, pFHIRRequest, body, pTimeout)
+	}
+}
+
+Method OnAfterRequest(
+	pFHIRService As HS.FHIRServer.API.Service,
+	pFHIRRequest As HS.FHIRServer.API.Data.Request,
+	pFHIRResponse As HS.FHIRServer.API.Data.Response)
+{
+	// OnAfterRequest is called after each request is processed.
+	if $ISOBJECT(..PythonClass) {
+		set body = ##class(%SYS.Python).None()
+		if pFHIRResponse.Json '= "" {
+			set jsonLib = ##class(%SYS.Python).Import("json")
+			set body = jsonLib.loads(pFHIRResponse.Json.%ToJSON())
+		}
+		do ..PythonClass."on_after_request"(pFHIRService, pFHIRRequest, pFHIRResponse, body)
+	}
+}
+
+Method PostProcessRead(pResourceObject As %DynamicObject) As %Boolean
+{
+	// PostProcessRead is called after a resource is read from the database.
+	// Return 1 to indicate that the resource should be included in the response.
+	// Return 0 to indicate that the resource should be excluded from the response.
+	if $ISOBJECT(..PythonClass) {
+		if pResourceObject '= "" {
+			set jsonLib = ##class(%SYS.Python).Import("json")
+			set body = jsonLib.loads(pResourceObject.%ToJSON())
+		}
+		return ..PythonClass."post_process_read"(body)
+	}
+	quit 1
+}
+
+Method PostProcessSearch(
+	pRS As HS.FHIRServer.Util.SearchResult,
+	pResourceType As %String) As %Status
+{
+	// PostProcessSearch is called after a search is performed.
+	// Return $$$OK to indicate that the search was successful.
+	// Return an error code to indicate that the search failed.
+	if $ISOBJECT(..PythonClass) {
+		return ..PythonClass."post_process_search"(pRS, pResourceType)
+	}
+	quit $$$OK
+}
+
+Method Read(
+	pResourceType As %String,
+	pResourceId As %String,
+	pVersionId As %String = "") As %DynamicObject
+{
+	return ##super(pResourceType, pResourceId, pVersionId)
+}
+
+Method Add(
+	pResourceObj As %DynamicObject,
+	pResourceIdToAssign As %String = "",
+	pHttpMethod = "POST") As %String
+{
+	return ##super(pResourceObj, pResourceIdToAssign, pHttpMethod)
+}
+
+/// Returns VersionId for the "deleted" version
+Method Delete(
+	pResourceType As %String,
+	pResourceId As %String) As %String
+{
+	return ##super(pResourceType, pResourceId)
+}
+
+Method Update(pResourceObj As %DynamicObject) As %String
+{
+	return ##super(pResourceObj)
+}
+
+}
+```
+
+The `FHIR.Python.Interactions` class inherits from `HS.FHIRServer.Storage.Json.Interactions` class and `FHIR.Python.Helper` class.
+
+The `HS.FHIRServer.Storage.Json.Interactions` class is the default implementation of the FHIR Server.
+
+The `FHIR.Python.Helper` class aim to help to call Python code from ObjectScript.
+
+The `FHIR.Python.Interactions` class overrides the following methods :
+
+- `%OnNew` : called when the object is created
+  - we use this method to set the python path, python class name and python module name from environment variables
+  - if the environment variables are not set, we use default values
+  - we also set the python class
+  - we call the `%OnNew` method of the parent class
+- `OnBeforeRequest` : called before the request is sent to the server
+  - we call the `on_before_request` method of the python class
+  - we pass the `HS.FHIRServer.API.Service` object, the `HS.FHIRServer.API.Data.Request` object, the body of the request and the timeout
+- `OnAfterRequest` : called after the request is sent to the server
+  - we call the `on_after_request` method of the python class
+  - we pass the `HS.FHIRServer.API.Service` object, the `HS.FHIRServer.API.Data.Request` object, the `HS.FHIRServer.API.Data.Response` object and the body of the response
+- And so on...
+
+TL;DR : the `FHIR.Python.Interactions` class is a wrapper to call the python class.
+That help us to keep python code and ObjectScript code separated and for so benefit from the best of both worlds.
