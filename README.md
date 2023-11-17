@@ -8,6 +8,15 @@
   - [1.3. Consent](#13-consent)
   - [1.4. Custom CapabilityStatement](#14-custom-capabilitystatement)
   - [1.5. How iris-fhir-python-strategy works](#15-how-iris-fhir-python-strategy-works)
+    - [1.5.1. Introduction](#151-introduction)
+    - [1.5.2. Remarks](#152-remarks)
+    - [1.5.3. Where to find the code](#153-where-to-find-the-code)
+    - [1.5.4. How to implement a Strategy](#154-how-to-implement-a-strategy)
+    - [1.5.5. Implementation of InteractionsStrategy](#155-implementation-of-interactionsstrategy)
+    - [1.5.6. Implementation of Interactions](#156-implementation-of-interactions)
+    - [1.5.7. Interactions in Python](#157-interactions-in-python)
+    - [1.5.8. Implementation of the abstract python class](#158-implementation-of-the-abstract-python-class)
+    - [1.5.9. Too long, do a summary](#159-too-long-do-a-summary)
 
 ## 1.1. Description
 
@@ -345,6 +354,8 @@ cd /irisdev/app/src/python
 
 ## 1.5. How iris-fhir-python-strategy works
 
+### 1.5.1. Introduction
+
 First of all, we have to understand how IRIS FHIR Server works.
 
 Every IRIS FHIR Server implement a `Strategy`.
@@ -361,13 +372,19 @@ Both classes are `Abstract` classes.
 - `HS.FHIRServer.API.InteractionsStrategy` is an `Abstract` class that must be implemented to customize the behavior of the FHIR Server.
 - `HS.FHIRServer.API.RepoManager` is an `Abstract` class that must be implemented to customize the storage of the FHIR Server.
 
+### 1.5.2. Remarks
+
 For our example, we will only focus on the `HS.FHIRServer.API.InteractionsStrategy` class even if the `HS.FHIRServer.API.RepoManager` class is also implemented and mandatory to customize the FHIR Server.
 The `HS.FHIRServer.API.RepoManager` class is implemented by `HS.FHIRServer.Storage.Json.RepoManager` class, which is the default implementation of the FHIR Server.
+
+### 1.5.3. Where to find the code
 
 All source code can be found in the `src` folder.
 The `src` folder contains the following folders :
 - `python` : contains the python code
 - `cls` : contains the ObjectScript code that is used to call the python code
+
+### 1.5.4. How to implement a Strategy
 
 In this proof of concept, we will only be interested in how to implement a `Strategy` in Python, not how to implement a `RepoManager`.
 
@@ -375,6 +392,8 @@ To implement a `Strategy` you need to create at least two classes :
 
 - A class that inherits from `HS.FHIRServer.API.InteractionsStrategy` class
 - A class that inherits from `HS.FHIRServer.API.Interactions` class
+
+### 1.5.5. Implementation of InteractionsStrategy
 
 `HS.FHIRServer.API.InteractionsStrategy` class aim to customize the behavior of the FHIR Server by overriding the following methods :
 
@@ -385,6 +404,8 @@ To implement a `Strategy` you need to create at least two classes :
 
 - `StrategyKey` : a unique identifier for the InteractionsStrategy
 - `InteractionsClass` : the name of your Interactions subclass
+
+### 1.5.6. Implementation of Interactions
 
 `HS.FHIRServer.API.Interactions` class aim to customize the behavior of the FHIR Server by overriding the following methods :
 
@@ -546,5 +567,127 @@ The `FHIR.Python.Interactions` class overrides the following methods :
   - we pass the `HS.FHIRServer.API.Service` object, the `HS.FHIRServer.API.Data.Request` object, the `HS.FHIRServer.API.Data.Response` object and the body of the response
 - And so on...
 
-TL;DR : the `FHIR.Python.Interactions` class is a wrapper to call the python class.
+### 1.5.7. Interactions in Python
+
+`FHIR.Python.Interactions` class calls the `on_before_request`, `on_after_request`, ... methods of the python class.
+
+Here is the abstract python class :
+
+```python
+import abc
+import iris
+
+class Interaction(object):
+    __metaclass__ = abc.ABCMeta
+
+    @abc.abstractmethod
+    def on_before_request(self, 
+                          fhir_service:'iris.HS.FHIRServer.API.Service',
+                          fhir_request:'iris.HS.FHIRServer.API.Data.Request',
+                          body:dict,
+                          timeout:int):
+        """
+        on_before_request is called before the request is sent to the server.
+        param fhir_service: the fhir service object iris.HS.FHIRServer.API.Service
+        param fhir_request: the fhir request object iris.FHIRServer.API.Data.Request
+        param timeout: the timeout in seconds
+        return: None
+        """
+        
+
+    @abc.abstractmethod
+    def on_after_request(self,
+                         fhir_service:'iris.HS.FHIRServer.API.Service',
+                         fhir_request:'iris.HS.FHIRServer.API.Data.Request',
+                         fhir_response:'iris.HS.FHIRServer.API.Data.Response',
+                         body:dict):
+        """
+        on_after_request is called after the request is sent to the server.
+        param fhir_service: the fhir service object iris.HS.FHIRServer.API.Service
+        param fhir_request: the fhir request object iris.FHIRServer.API.Data.Request
+        param fhir_response: the fhir response object iris.FHIRServer.API.Data.Response
+        return: None
+        """
+        
+
+    @abc.abstractmethod
+    def post_process_read(self,
+                          fhir_object:dict) -> bool:
+        """
+        post_process_read is called after the read operation is done.
+        param fhir_object: the fhir object
+        return: True the resource should be returned to the client, False otherwise
+        """
+        
+
+    @abc.abstractmethod
+    def post_process_search(self,
+                            rs:'iris.HS.FHIRServer.Util.SearchResult',
+                            resource_type:str):
+        """
+        post_process_search is called after the search operation is done.
+        param rs: the search result iris.HS.FHIRServer.Util.SearchResult
+        param resource_type: the resource type
+        return: None
+        """
+```
+
+### 1.5.8. Implementation of the abstract python class
+
+```python
+from FhirInteraction import Interaction
+
+class CustomInteraction(Interaction):
+
+    def on_before_request(self, fhir_service, fhir_request, body, timeout):
+        #Extract the user and roles for this request
+        #so consent can be evaluated.
+        self.requesting_user = fhir_request.Username
+        self.requesting_roles = fhir_request.Roles
+
+    def on_after_request(self, fhir_service, fhir_request, fhir_response, body):
+        #Clear the user and roles between requests.
+        self.requesting_user = ""
+        self.requesting_roles = ""
+
+    def post_process_read(self, fhir_object):
+        #Evaluate consent based on the resource and user/roles.
+        #Returning 0 indicates this resource shouldn't be displayed - a 404 Not Found
+        #will be returned to the user.
+        return self.consent(fhir_object['resourceType'],
+                        self.requesting_user,
+                        self.requesting_roles)
+
+    def post_process_search(self, rs, resource_type):
+        #Iterate through each resource in the search set and evaluate
+        #consent based on the resource and user/roles.
+        #Each row marked as deleted and saved will be excluded from the Bundle.
+        rs._SetIterator(0)
+        while rs._Next():
+            if not self.consent(rs.ResourceType,
+                            self.requesting_user,
+                            self.requesting_roles):
+                #Mark the row as deleted and save it.
+                rs.MarkAsDeleted()
+                rs._SaveRow()
+
+    def consent(self, resource_type, user, roles):
+        #Example consent logic - only allow users with the role '%All' to see
+        #Observation resources.
+        if resource_type == 'Observation':
+            if '%All' in roles:
+                return True
+            else:
+                return False
+        else:
+            return True
+
+```
+
+### 1.5.9. Too long, do a summary
+
+The `FHIR.Python.Interactions` class is a wrapper to call the python class.
+
+IRIS abstracts classes are implemented to wrap python abstract classes 🥳.
+
 That help us to keep python code and ObjectScript code separated and for so benefit from the best of both worlds.
