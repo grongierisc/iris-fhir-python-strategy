@@ -420,8 +420,10 @@ To implement a `Strategy` you need to create at least two classes :
 - and many more...
 
 We implement `HS.FHIRServer.API.Interactions` class in the `src/cls/FHIR/Python/Interactions.cls` class.
+
 <details> 
 <summary>Click to see the code</summary>
+
 ```objectscript
 Class FHIR.Python.Interactions Extends (HS.FHIRServer.Storage.Json.Interactions, FHIR.Python.Helper)
 {
