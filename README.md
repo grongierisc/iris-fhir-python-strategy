@@ -559,12 +559,70 @@ The `FHIR.Python.Interactions` class overrides the following methods :
   - if the environment variables are not set, we use default values
   - we also set the python class
   - we call the `%OnNew` method of the parent class
+```objectscript
+Method %OnNew(pStrategy As HS.FHIRServer.Storage.Json.InteractionsStrategy) As %Status
+{
+	// First set the python path from an env var
+	set ..PythonPath = $system.Util.GetEnviron("INTERACTION_PATH")
+	// Then set the python class name from the env var
+	set ..PythonClassname = $system.Util.GetEnviron("INTERACTION_CLASS")
+	// Then set the python module name from the env var
+	set ..PythonModule = $system.Util.GetEnviron("INTERACTION_MODULE")
+
+	if (..PythonPath = "") || (..PythonClassname = "") || (..PythonModule = "") {
+		// use default values
+		set ..PythonPath = "/irisdev/app/src/python/"
+		set ..PythonClassname = "CustomInteraction"
+		set ..PythonModule = "custom"
+	}
+
+	// Then set the python class
+	do ..SetPythonPath(..PythonPath)
+	set ..PythonClass = ##class(FHIR.Python.Interactions).GetPythonInstance(..PythonModule, ..PythonClassname)
+
+	quit ##super(pStrategy)
+}
+```
 - `OnBeforeRequest` : called before the request is sent to the server
   - we call the `on_before_request` method of the python class
   - we pass the `HS.FHIRServer.API.Service` object, the `HS.FHIRServer.API.Data.Request` object, the body of the request and the timeout
+```objectscript
+Method OnBeforeRequest(
+	pFHIRService As HS.FHIRServer.API.Service,
+	pFHIRRequest As HS.FHIRServer.API.Data.Request,
+	pTimeout As %Integer)
+{
+	// OnBeforeRequest is called before each request is processed.
+	if $ISOBJECT(..PythonClass) {
+		set body = ##class(%SYS.Python).None()
+		if pFHIRRequest.Json '= "" {
+			set jsonLib = ##class(%SYS.Python).Import("json")
+			set body = jsonLib.loads(pFHIRRequest.Json.%ToJSON())
+		}
+		do ..PythonClass."on_before_request"(pFHIRService, pFHIRRequest, body, pTimeout)
+	}
+}
+```
 - `OnAfterRequest` : called after the request is sent to the server
   - we call the `on_after_request` method of the python class
   - we pass the `HS.FHIRServer.API.Service` object, the `HS.FHIRServer.API.Data.Request` object, the `HS.FHIRServer.API.Data.Response` object and the body of the response
+```objectscript
+Method OnAfterRequest(
+	pFHIRService As HS.FHIRServer.API.Service,
+	pFHIRRequest As HS.FHIRServer.API.Data.Request,
+	pFHIRResponse As HS.FHIRServer.API.Data.Response)
+{
+	// OnAfterRequest is called after each request is processed.
+	if $ISOBJECT(..PythonClass) {
+		set body = ##class(%SYS.Python).None()
+		if pFHIRResponse.Json '= "" {
+			set jsonLib = ##class(%SYS.Python).Import("json")
+			set body = jsonLib.loads(pFHIRResponse.Json.%ToJSON())
+		}
+		do ..PythonClass."on_after_request"(pFHIRService, pFHIRRequest, pFHIRResponse, body)
+	}
+}
+```
 - And so on...
 
 ### 1.5.7. Interactions in Python
