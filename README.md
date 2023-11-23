@@ -358,14 +358,14 @@ cd /irisdev/app/src/python
 
 First of all, we have to understand how IRIS FHIR Server works.
 
-Every IRIS FHIR Server implement a `Strategy`.
+Every IRIS FHIR Server implements a `Strategy`.
 
 A `Strategy` is a set of two classes :
 
 | Superclass | Subclass Parameters |
 | ---------- | ------------------- |
-| HS.FHIRServer.API.InteractionsStrategy |     StrategyKey — Specifies a unique identifier for the InteractionsStrategy.<br>    InteractionsClass — Specifies the name of your Interactions subclass.|
-| HS.FHIRServer.API.RepoManager |     StrategyClass — Specifies the name of your InteractionsStrategy subclass.<br>    StrategyKey — Specifies a unique identifier for the InteractionsStrategy. Must match the StrategyKey parameter in the InteractionsStrategy subclass.|
+| HS.FHIRServer.API.InteractionsStrategy |     `StrategyKey` — Specifies a unique identifier for the InteractionsStrategy.<br>    `InteractionsClass` — Specifies the name of your Interactions subclass.|
+| HS.FHIRServer.API.RepoManager |     `StrategyClass` — Specifies the name of your InteractionsStrategy subclass.<br>    `StrategyKey` — Specifies a unique identifier for the InteractionsStrategy. Must match the StrategyKey parameter in the InteractionsStrategy subclass.|
 
 Both classes are `Abstract` classes.
 
@@ -583,7 +583,7 @@ Method %OnNew(pStrategy As HS.FHIRServer.Storage.Json.InteractionsStrategy) As %
 
 	// Then set the python class
 	do ..SetPythonPath(..PythonPath)
-	set ..PythonClass = ##class(FHIR.Python.Interactions).GetPythonInstance(..PythonModule, ..PythonClassname)
+	set ..PythonClass = ..GetPythonInstance(..PythonModule, ..PythonClassname)
 
 	quit ##super(pStrategy)
 }
