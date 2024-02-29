@@ -7,7 +7,7 @@ services:
     restart: always
     ports: 
       - 1972
-      - 8083:52773
+      - 8089:52773
       - 53773
     volumes:
       - ./:/irisdev/app/

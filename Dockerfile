@@ -1,4 +1,4 @@
-FROM intersystemsdc/irishealth-community:latest as builder
+FROM intersystemsdc/irishealth-community:preview as builder
 
 RUN \
 	--mount=type=bind,src=.,dst=/irisdev/app \
@@ -8,7 +8,7 @@ RUN \
 	iris session IRIS < /tmp/iris.script && \
 	iris stop iris quietly
 
-FROM intersystemsdc/irishealth-community:latest as final
+FROM intersystemsdc/irishealth-community:preview as final
 
 ADD --chown=${ISC_PACKAGE_MGRUSER}:${ISC_PACKAGE_IRISGROUP} https://github.com/grongierisc/iris-docker-multi-stage-script/releases/latest/download/copy-data.py /irisdev/app/copy-data.py
 
