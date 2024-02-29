@@ -33,13 +33,19 @@ ClassMethod GetPythonInstance(
 {
     set importlib = ##class(%SYS.Python).Import("importlib")
     set builtins = ##class(%SYS.Python).Import("builtins")
-    set sys = ##class(%SYS.Python).Import("sys")
 
     set module = importlib."import_module"(pModule)
     do importlib."reload"(module)
 
     set class = builtins.getattr(module, pRemoteClassname)
     return class."__new__"(class)
+}
+
+ClassMethod DeleteFHIRData(pFHIRData As %String)
+{
+    set strategy = ##class(HS.FHIRServer.API.InteractionsStrategy).GetStrategyForEndpoint(pFHIRData)
+    set options("deleteDataOnly") = 1
+    do strategy.Delete(.options)
 }
 
 }
