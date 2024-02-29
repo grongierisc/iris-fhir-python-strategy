@@ -13,9 +13,9 @@
 	Do ##class(HS.HC.FHIRSQL.Utils.Setup).DefineDocDBs("HSSYS")
 
     set namespace="FHIRSERVER"
-    Set appKey = "/fhir/r4"
+    Set appKey = "/fhir/r5"
     Set strategyClass = "FHIR.Python.InteractionsStrategy"
-    set metadataPackages = $lb("hl7.fhir.r4.core@4.0.1")
+    set metadataPackages = $lb("hl7.fhir.r5.core@5.0.0")
 
     //Install a Foundation namespace and change to it
     Do ##class(HS.HC.Util.Installer).InstallFoundation(namespace)
@@ -40,5 +40,5 @@
     set config.MaxSearchResults = 100000
     do strategy.SaveServiceConfigData(config)
 
-    do ##class(HS.FHIRServer.Tools.DataLoader).SubmitResourceFiles("/irisdev/app/data/fhir", "FHIRSERVER", "/fhir/r4")
+    do ##class(HS.FHIRServer.Tools.DataLoader).SubmitResourceFiles("/irisdev/app/data/fhir", "FHIRSERVER", "/fhir/r5")
     halt
