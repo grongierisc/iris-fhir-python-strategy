@@ -1,2 +1,5 @@
 iris-pex-embedded-python
 google-auth-oauthlib==1.0.0
+fhir.resources
+intersystems_iris @ https://github.com/intersystems-community/intersystems-irispython/releases/download/3.7.6/intersystems_iris-3.7.6-py3-none-any.whl
+deepdiff
