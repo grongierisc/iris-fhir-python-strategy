@@ -1,4 +1,4 @@
-from FhirInteraction import Interaction, Strategy, OAuthInteraction
+from FhirInteraction import Interaction, Strategy, OAuthInteraction, OperationHandler
 
 from google.oauth2 import id_token
 from google.auth.transport import requests
@@ -8,6 +8,8 @@ import requests as rq
 import iris
 
 import time
+
+from deepdiff import DeepDiff
 
 import os
 import json
@@ -88,15 +90,16 @@ class CustomOAuthInteraction(OAuthInteraction):
 
     def verify_id_token(self,token:str):
         # Verify the token and get the user info
-        idinfo = id_token.verify_oauth2_token(token, requests.Request(), self.client_id)
-        if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+        self.token_obj = id_token.verify_oauth2_token(token, requests.Request(), self.client_id)
+        if self.token_obj['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
             raise ValueError('Wrong issuer.')
 
     def get_introspection(self)->dict:
         return {}
     
     def get_user_info(self,basic_auth_username:str,basic_auth_roles:str)->dict:
-        return {"Username":basic_auth_username,"Roles":basic_auth_roles}
+        # try to get the user info from the token
+        return {"Username":self.username,"Roles":basic_auth_roles}
     
     def verify_resource_id_request(self,resource_type:str,resource_id:str,required_privilege:str):
         pass
@@ -172,6 +175,62 @@ class CustomInteraction(Interaction):
                 return False
         else:
             return True
+        
+class CustomOperationHandler(OperationHandler):
+    
+        def add_supported_operations(self,map:dict) -> dict:
+            """
+            @API Enumerate the name and url of each Operation supported by this class
+            @Output map : A map of operation names to their corresponding URL.
+            Example:
+            return map.put("restart","http://hl7.org/fhir/OperationDefinition/System-restart")
+            """
+
+            # verify the map has attribute resource 
+            if not 'resource' in map:
+                map['resource'] = {}
+            # verify the map has attribute patient in the resource
+            if not 'Patient' in map['resource']:
+                map['resource']['Patient'] = []
+            # add the operation to the map
+            map['resource']['Patient'].append({"name": "merge" , "definition": "http://hl7.org/fhir/OperationDefinition/Patient-merge"})
+
+            return map
+    
+        def process_operation(
+            self,
+            operation_name:str,
+            operation_scope:str,
+            body:dict,
+            fhir_service:'iris.HS.FHIRServer.API.Service',
+            fhir_request:'iris.HS.FHIRServer.API.Data.Request',
+            fhir_response:'iris.HS.FHIRServer.API.Data.Response'
+        ) -> 'iris.HS.FHIRServer.API.Data.Response':
+            """
+            @API Process an Operation request.
+            @Input operation_name : The name of the Operation to process.
+            @Input operation_scope : The scope of the Operation to process.
+            @Input fhir_service : The FHIR Service object.
+            @Input fhir_request : The FHIR Request object.
+            @Input fhir_response : The FHIR Response object.
+            @Output : The FHIR Response object.
+            """
+            if operation_name == "merge" and operation_scope == "Instance" and fhir_request.RequestMethod == "POST":
+                # get the primary resource
+                primary_resource = json.loads(fhir_service.interactions.Read(fhir_request.Type, fhir_request.Id)._ToJSON())
+                # get the secondary resource
+                secondary_resource = json.loads(fhir_request.Json._ToJSON())
+                # retun the diff of the two resources
+                # make use of deepdiff to get the difference between the two resources
+                diff = DeepDiff(primary_resource, secondary_resource, ignore_order=True).to_json()
+
+                # create a new %DynamicObject to store the result
+                result = iris.cls('%DynamicObject')._FromJSON(diff)
+
+                # set the result to the response
+                fhir_response.Json = result
+            
+            return fhir_response
 
 def set_capability_statement():
     from FhirInteraction import Utils
