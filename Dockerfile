@@ -1,30 +1,36 @@
-FROM intersystemsdc/irishealth-community:preview as builder
+ARG IMAGE=containers.intersystems.com/intersystems/irishealth-community:latest-em
+FROM $IMAGE 
 
-RUN \
-	--mount=type=bind,src=.,dst=/irisdev/app \
-	--mount=type=bind,src=./iris.script,dst=/tmp/iris.script \
-	pip3 install -r /irisdev/app/requirements.txt && \
-	iris start IRIS && \
-	iris session IRIS < /tmp/iris.script && \
-	iris stop iris quietly
+USER root
 
-FROM intersystemsdc/irishealth-community:preview as final
+# Update package and install sudo
+RUN apt-get update && apt-get install -y \
+	git \
+	vim \
+	sudo && \
+	/bin/echo -e ${ISC_PACKAGE_MGRUSER}\\tALL=\(ALL\)\\tNOPASSWD: ALL >> /etc/sudoers && \
+	sudo -u ${ISC_PACKAGE_MGRUSER} sudo echo enabled passwordless sudo-ing for ${ISC_PACKAGE_MGRUSER}
 
-ADD --chown=${ISC_PACKAGE_MGRUSER}:${ISC_PACKAGE_IRISGROUP} https://github.com/grongierisc/iris-docker-multi-stage-script/releases/latest/download/copy-data.py /irisdev/app/copy-data.py
+# Create local folder for the application
+RUN mkdir -p /irisdev/app
+RUN chown ${ISC_PACKAGE_MGRUSER}:${ISC_PACKAGE_IRISGROUP} /irisdev/app
+# Change back the user to irisowner
+USER ${ISC_PACKAGE_MGRUSER}
 
-# copy the python requirements file
-COPY --chown=${ISC_PACKAGE_MGRUSER}:${ISC_PACKAGE_IRISGROUP} ./requirements.txt /irisdev/app/requirements.txt
+## Python stuff
+ENV IRISUSERNAME="SuperUser"
+ENV IRISPASSWORD="SYS"
+ENV IRISNAMESPACE="FHIRSERVER"
 
-# install the python requirements
-RUN pip3 install -r /irisdev/app/requirements.txt
+ENV PYTHON_PATH=/usr/irissys/bin/
+ENV LD_LIBRARY_PATH=${ISC_PACKAGE_INSTALLDIR}/bin
+ENV PATH="/home/irisowner/.local/bin:/usr/irissys/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/irisowner/bin"
 
-RUN --mount=type=bind,source=/,target=/builder/root,from=builder \
-    cp -f /builder/root/usr/irissys/iris.cpf /usr/irissys/iris.cpf && \
-    python3 /irisdev/app/copy-data.py -c /usr/irissys/iris.cpf -d /builder/root/ 
+# Copy the source code
+COPY --chown=${ISC_PACKAGE_MGRUSER}:${ISC_PACKAGE_IRISGROUP} . /irisdev/app/
 
-# Python stuff
-ENV IRISUSERNAME "SuperUser"
-ENV IRISPASSWORD "SYS"
-ENV IRISNAMESPACE "FHIRSERVER"
-ENV IRISINSTALLDIR $ISC_PACKAGE_INSTALLDIR
-ENV LD_LIBRARY_PATH=$IRISINSTALLDIR/bin:$LD_LIBRARY_PATH
+# Copy key file
+# COPY key/iris.key /usr/irissys/mgr/iris.key
+
+# Install the requirements
+RUN pip3 install -r /irisdev/app/requirements.txt --break-system-packages

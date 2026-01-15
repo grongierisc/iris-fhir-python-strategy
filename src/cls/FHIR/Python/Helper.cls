@@ -41,6 +41,21 @@ ClassMethod GetPythonInstance(
     return class."__new__"(class)
 }
 
+ClassMethod GetCustomizationSettings(
+	Output pPythonPath As %String,
+	Output pPythonModule As %String) As %Status
+{
+	set pPythonPath = $system.Util.GetEnviron("FHIR_CUSTOMIZATION_PATH")
+	set pPythonModule = $system.Util.GetEnviron("FHIR_CUSTOMIZATION_MODULE")
+
+	if (pPythonPath = "") || (pPythonModule = "") {
+		set pPythonPath = "/irisdev/app/src/FHIRSERVER/python/"
+		set pPythonModule = "custom_decorators"
+	}
+
+	quit $$$OK
+}
+
 ClassMethod DeleteFHIRData(pFHIRData As %String)
 {
     set strategy = ##class(HS.FHIRServer.API.InteractionsStrategy).GetStrategyForEndpoint(pFHIRData)

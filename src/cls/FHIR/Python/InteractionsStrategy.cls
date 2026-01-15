@@ -1,4 +1,4 @@
-Class FHIR.Python.InteractionsStrategy Extends (HS.FHIRServer.Storage.Json.InteractionsStrategy, FHIR.Python.Helper)
+Class FHIR.Python.InteractionsStrategy Extends (HS.FHIRServer.Storage.JsonAdvSQL.InteractionsStrategy, FHIR.Python.Helper)
 {
 
 Parameter StrategyKey = "FHIR.Python.InteractionsStrategy";
@@ -7,34 +7,46 @@ Parameter InteractionsClass = "FHIR.Python.Interactions";
 
 Method GetMetadataResource() As %DynamicObject
 {
-	set ..PythonPath = $system.Util.GetEnviron("STRATEGY_PATH")
-	// Then set the python class name from the env var
-	set ..PythonClassname = $system.Util.GetEnviron("STRATEGY_CLASS")
-	// Then set the python module name from the env var
-	set ..PythonModule = $system.Util.GetEnviron("STRATEGY_MODULE")
+	// Load the Python decorator registry
+	do ..GetCustomizationSettings(.tPythonPath, .tPythonModule)
+	set ..PythonPath = tPythonPath
+	set ..PythonModule = tPythonModule
 
-	if (..PythonPath = "") || (..PythonClassname = "") || (..PythonModule = "") {
-		#; quit ##super()
-		set ..PythonPath = "/irisdev/app/src/python/"
-		set ..PythonClassname = "CustomStrategy"
-		set ..PythonModule = "custom"
-	}
-
-	// Then set the python class
+	// Set Python path and import module
 	do ..SetPythonPath(..PythonPath)
-	set ..PythonClass = ..GetPythonInstance(..PythonModule, ..PythonClassname)
+	set importlib = ##class(%SYS.Python).Import("importlib")
+	do importlib."import_module"(..PythonModule)
+	
+	// Get the fhir decorator registry
+	set fhirDecorators = ##class(%SYS.Python).Import("fhir_decorators")
+	set ..PythonClass = fhirDecorators.fhir
 
     set tMyCapabilityStatement = ##super()
 
-	// OnBeforeRequest is called before each request is processed.
+	// Call all registered capability statement handlers
 	if $ISOBJECT(..PythonClass) {
-        // cast the tMyCapabilityStatement to a dict
         set jsonLib = ##class(%SYS.Python).Import("json")
         set capability = jsonLib.loads(tMyCapabilityStatement.%ToJSON())
-        // call the python class
-        set capability = ..PythonClass."on_get_capability_statement"(capability)
-        // cast the dict back to a tMyCapabilityStatement
-        set tMyCapabilityStatement = {}.%FromJSON(jsonLib.dumps(capability))
+        
+        // Get all capability statement handlers
+        set handlers = ..PythonClass."get_capability_statement_handlers"()
+        if handlers."__len__"() > 0 {
+	        set iterator = handlers."__iter__"()
+	        set handler = ""
+	        Try {
+		        for {
+			        set handler = iterator."__next__"()
+			        quit:handler=""
+			        set capability = handler."__call__"(capability)
+		        }
+	        }
+	        Catch ex {
+		        if (ex.Code '= 246) { // StopIteration
+			        //throw ex
+		        }
+	        }
+	        set tMyCapabilityStatement = {}.%FromJSON(jsonLib.dumps(capability))
+        }
 	}
 
     return tMyCapabilityStatement

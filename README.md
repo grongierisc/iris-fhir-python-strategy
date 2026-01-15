@@ -15,8 +15,9 @@
     - [1.5.5. Implementation of InteractionsStrategy](#155-implementation-of-interactionsstrategy)
     - [1.5.6. Implementation of Interactions](#156-implementation-of-interactions)
     - [1.5.7. Interactions in Python](#157-interactions-in-python)
-    - [1.5.8. Implementation of the abstract python class](#158-implementation-of-the-abstract-python-class)
-    - [1.5.9. Too long, do a summary](#159-too-long-do-a-summary)
+    - [1.5.8. Available decorators](#158-available-decorators)
+    - [1.5.9. Configuration](#159-configuration)
+    - [1.5.10. Too long, do a summary](#1510-too-long-do-a-summary)
 
 ## 1.1. Description
 
@@ -419,338 +420,108 @@ To implement a `Strategy` you need to create at least two classes :
 - `Delete` : called to delete a resource
 - and many more...
 
-We implement `HS.FHIRServer.API.Interactions` class in the `src/cls/FHIR/Python/Interactions.cls` class.
+We implement `HS.FHIRServer.API.Interactions` class in the `src/cls/FHIR/Python/Interactions.cls` class. It loads the Python decorator module and executes any registered handlers. If no decorator is registered for a hook, the default ObjectScript behavior runs via `##super(...)`.
 
 <details> 
 <summary>Click to see the code</summary>
 
 ```objectscript
-Class FHIR.Python.Interactions Extends (HS.FHIRServer.Storage.Json.Interactions, FHIR.Python.Helper)
+Class FHIR.Python.Interactions Extends (HS.FHIRServer.Storage.JsonAdvSQL.Interactions, FHIR.Python.Helper)
 {
 
-Parameter OAuth2TokenHandlerClass As %String = "FHIR.Python.OAuth2Token";
-
-Method %OnNew(pStrategy As HS.FHIRServer.Storage.Json.InteractionsStrategy) As %Status
+Method %OnNew(pStrategy As HS.FHIRServer.Storage.JsonAdvSQL.InteractionsStrategy) As %Status
 {
-	// %OnNew is called when the object is created.
-	// The pStrategy parameter is the strategy object that created this object.
-	// The default implementation does nothing
-	// Frist set the python path from an env var
-	set ..PythonPath = $system.Util.GetEnviron("INTERACTION_PATH")
-	// Then set the python class name from the env var
-	set ..PythonClassname = $system.Util.GetEnviron("INTERACTION_CLASS")
-	// Then set the python module name from the env var
-	set ..PythonModule = $system.Util.GetEnviron("INTERACTION_MODULE")
+    do ..GetCustomizationSettings(.tPythonPath, .tPythonModule)
+    set ..PythonPath = tPythonPath
+    set ..PythonModule = tPythonModule
 
-	if (..PythonPath = "") || (..PythonClassname = "") || (..PythonModule = "") {
-		//quit ##super(pStrategy)
-		set ..PythonPath = "/irisdev/app/src/python/"
-		set ..PythonClassname = "CustomInteraction"
-		set ..PythonModule = "custom"
-	}
+    do ..SetPythonPath(..PythonPath)
+    set importlib = ##class(%SYS.Python).Import("importlib")
+    set ..PythonModule = importlib."import_module"(..PythonModule)
+    do importlib."reload"(..PythonModule)
 
+    set fhirDecorators = ##class(%SYS.Python).Import("fhir_decorators")
+    set ..PythonClass = fhirDecorators.fhir
 
-	// Then set the python class
-	do ..SetPythonPath(..PythonPath)
-	set ..PythonClass = ##class(FHIR.Python.Interactions).GetPythonInstance(..PythonModule, ..PythonClassname)
-
-	quit ##super(pStrategy)
+    quit ##super(pStrategy)
 }
 
 Method OnBeforeRequest(
-	pFHIRService As HS.FHIRServer.API.Service,
-	pFHIRRequest As HS.FHIRServer.API.Data.Request,
-	pTimeout As %Integer)
+    pFHIRService As HS.FHIRServer.API.Service,
+    pFHIRRequest As HS.FHIRServer.API.Data.Request,
+    pTimeout As %Integer)
 {
-	// OnBeforeRequest is called before each request is processed.
-	if $ISOBJECT(..PythonClass) {
-		set body = ##class(%SYS.Python).None()
-		if pFHIRRequest.Json '= "" {
-			set jsonLib = ##class(%SYS.Python).Import("json")
-			set body = jsonLib.loads(pFHIRRequest.Json.%ToJSON())
-		}
-		do ..PythonClass."on_before_request"(pFHIRService, pFHIRRequest, body, pTimeout)
-	}
-}
-
-Method OnAfterRequest(
-	pFHIRService As HS.FHIRServer.API.Service,
-	pFHIRRequest As HS.FHIRServer.API.Data.Request,
-	pFHIRResponse As HS.FHIRServer.API.Data.Response)
-{
-	// OnAfterRequest is called after each request is processed.
-	if $ISOBJECT(..PythonClass) {
-		set body = ##class(%SYS.Python).None()
-		if pFHIRResponse.Json '= "" {
-			set jsonLib = ##class(%SYS.Python).Import("json")
-			set body = jsonLib.loads(pFHIRResponse.Json.%ToJSON())
-		}
-		do ..PythonClass."on_after_request"(pFHIRService, pFHIRRequest, pFHIRResponse, body)
-	}
-}
-
-Method PostProcessRead(pResourceObject As %DynamicObject) As %Boolean
-{
-	// PostProcessRead is called after a resource is read from the database.
-	// Return 1 to indicate that the resource should be included in the response.
-	// Return 0 to indicate that the resource should be excluded from the response.
-	if $ISOBJECT(..PythonClass) {
-		if pResourceObject '= "" {
-			set jsonLib = ##class(%SYS.Python).Import("json")
-			set body = jsonLib.loads(pResourceObject.%ToJSON())
-		}
-		return ..PythonClass."post_process_read"(body)
-	}
-	quit 1
-}
-
-Method PostProcessSearch(
-	pRS As HS.FHIRServer.Util.SearchResult,
-	pResourceType As %String) As %Status
-{
-	// PostProcessSearch is called after a search is performed.
-	// Return $$$OK to indicate that the search was successful.
-	// Return an error code to indicate that the search failed.
-	if $ISOBJECT(..PythonClass) {
-		return ..PythonClass."post_process_search"(pRS, pResourceType)
-	}
-	quit $$$OK
-}
-
-Method Read(
-	pResourceType As %String,
-	pResourceId As %String,
-	pVersionId As %String = "") As %DynamicObject
-{
-	return ##super(pResourceType, pResourceId, pVersionId)
-}
-
-Method Add(
-	pResourceObj As %DynamicObject,
-	pResourceIdToAssign As %String = "",
-	pHttpMethod = "POST") As %String
-{
-	return ##super(pResourceObj, pResourceIdToAssign, pHttpMethod)
-}
-
-/// Returns VersionId for the "deleted" version
-Method Delete(
-	pResourceType As %String,
-	pResourceId As %String) As %String
-{
-	return ##super(pResourceType, pResourceId)
-}
-
-Method Update(pResourceObj As %DynamicObject) As %String
-{
-	return ##super(pResourceObj)
-}
-
+    if $ISOBJECT(..PythonClass) {
+        set handlers = ..PythonClass."get_before_request_handlers"()
+        if handlers."__len__"() = 0 {
+            do ##super(pFHIRService, pFHIRRequest, pTimeout)
+            quit
+        }
+        // Call decorator handlers...
+    }
 }
 ```
 
 </details>
 
-The `FHIR.Python.Interactions` class inherits from `HS.FHIRServer.Storage.Json.Interactions` class and `FHIR.Python.Helper` class.
-
-The `HS.FHIRServer.Storage.Json.Interactions` class is the default implementation of the FHIR Server.
-
-The `FHIR.Python.Helper` class aim to help to call Python code from ObjectScript.
-
-The `FHIR.Python.Interactions` class overrides the following methods :
-
-- `%OnNew` : called when the object is created
-  - we use this method to set the python path, python class name and python module name from environment variables
-  - if the environment variables are not set, we use default values
-  - we also set the python class
-  - we call the `%OnNew` method of the parent class
-```objectscript
-Method %OnNew(pStrategy As HS.FHIRServer.Storage.Json.InteractionsStrategy) As %Status
-{
-	// First set the python path from an env var
-	set ..PythonPath = $system.Util.GetEnviron("INTERACTION_PATH")
-	// Then set the python class name from the env var
-	set ..PythonClassname = $system.Util.GetEnviron("INTERACTION_CLASS")
-	// Then set the python module name from the env var
-	set ..PythonModule = $system.Util.GetEnviron("INTERACTION_MODULE")
-
-	if (..PythonPath = "") || (..PythonClassname = "") || (..PythonModule = "") {
-		// use default values
-		set ..PythonPath = "/irisdev/app/src/python/"
-		set ..PythonClassname = "CustomInteraction"
-		set ..PythonModule = "custom"
-	}
-
-	// Then set the python class
-	do ..SetPythonPath(..PythonPath)
-	set ..PythonClass = ..GetPythonInstance(..PythonModule, ..PythonClassname)
-
-	quit ##super(pStrategy)
-}
-```
-- `OnBeforeRequest` : called before the request is sent to the server
-  - we call the `on_before_request` method of the python class
-  - we pass the `HS.FHIRServer.API.Service` object, the `HS.FHIRServer.API.Data.Request` object, the body of the request and the timeout
-```objectscript
-Method OnBeforeRequest(
-	pFHIRService As HS.FHIRServer.API.Service,
-	pFHIRRequest As HS.FHIRServer.API.Data.Request,
-	pTimeout As %Integer)
-{
-	// OnBeforeRequest is called before each request is processed.
-	if $ISOBJECT(..PythonClass) {
-		set body = ##class(%SYS.Python).None()
-		if pFHIRRequest.Json '= "" {
-			set jsonLib = ##class(%SYS.Python).Import("json")
-			set body = jsonLib.loads(pFHIRRequest.Json.%ToJSON())
-		}
-		do ..PythonClass."on_before_request"(pFHIRService, pFHIRRequest, body, pTimeout)
-	}
-}
-```
-- `OnAfterRequest` : called after the request is sent to the server
-  - we call the `on_after_request` method of the python class
-  - we pass the `HS.FHIRServer.API.Service` object, the `HS.FHIRServer.API.Data.Request` object, the `HS.FHIRServer.API.Data.Response` object and the body of the response
-```objectscript
-Method OnAfterRequest(
-	pFHIRService As HS.FHIRServer.API.Service,
-	pFHIRRequest As HS.FHIRServer.API.Data.Request,
-	pFHIRResponse As HS.FHIRServer.API.Data.Response)
-{
-	// OnAfterRequest is called after each request is processed.
-	if $ISOBJECT(..PythonClass) {
-		set body = ##class(%SYS.Python).None()
-		if pFHIRResponse.Json '= "" {
-			set jsonLib = ##class(%SYS.Python).Import("json")
-			set body = jsonLib.loads(pFHIRResponse.Json.%ToJSON())
-		}
-		do ..PythonClass."on_after_request"(pFHIRService, pFHIRRequest, pFHIRResponse, body)
-	}
-}
-```
-- And so on...
-
 ### 1.5.7. Interactions in Python
 
-`FHIR.Python.Interactions` class calls the `on_before_request`, `on_after_request`, ... methods of the python class.
-
-Here is the abstract python class :
+`FHIR.Python.Interactions` class calls handlers registered with decorators in `custom_decorators.py`.
 
 ```python
-import abc
-import iris
+from fhir_decorators import fhir
 
-class Interaction(object):
-    __metaclass__ = abc.ABCMeta
+@fhir.before_request
+def extract_user_context(fhir_service, fhir_request, body, timeout):
+    # called before request processing
+    pass
 
-    @abc.abstractmethod
-    def on_before_request(self, 
-                          fhir_service:'iris.HS.FHIRServer.API.Service',
-                          fhir_request:'iris.HS.FHIRServer.API.Data.Request',
-                          body:dict,
-                          timeout:int):
-        """
-        on_before_request is called before the request is sent to the server.
-        param fhir_service: the fhir service object iris.HS.FHIRServer.API.Service
-        param fhir_request: the fhir request object iris.FHIRServer.API.Data.Request
-        param timeout: the timeout in seconds
-        return: None
-        """
-        
-
-    @abc.abstractmethod
-    def on_after_request(self,
-                         fhir_service:'iris.HS.FHIRServer.API.Service',
-                         fhir_request:'iris.HS.FHIRServer.API.Data.Request',
-                         fhir_response:'iris.HS.FHIRServer.API.Data.Response',
-                         body:dict):
-        """
-        on_after_request is called after the request is sent to the server.
-        param fhir_service: the fhir service object iris.HS.FHIRServer.API.Service
-        param fhir_request: the fhir request object iris.FHIRServer.API.Data.Request
-        param fhir_response: the fhir response object iris.FHIRServer.API.Data.Response
-        return: None
-        """
-        
-
-    @abc.abstractmethod
-    def post_process_read(self,
-                          fhir_object:dict) -> bool:
-        """
-        post_process_read is called after the read operation is done.
-        param fhir_object: the fhir object
-        return: True the resource should be returned to the client, False otherwise
-        """
-        
-
-    @abc.abstractmethod
-    def post_process_search(self,
-                            rs:'iris.HS.FHIRServer.Util.SearchResult',
-                            resource_type:str):
-        """
-        post_process_search is called after the search operation is done.
-        param rs: the search result iris.HS.FHIRServer.Util.SearchResult
-        param resource_type: the resource type
-        return: None
-        """
+@fhir.on_read("Patient")
+def filter_patient_read(fhir_object):
+    # return False to hide a resource
+    return True
 ```
 
-### 1.5.8. Implementation of the abstract python class
+### 1.5.8. Available decorators
 
-```python
-from FhirInteraction import Interaction
+| Decorator | Purpose |
+| --- | --- |
+| `@fhir.on_capability_statement` | Customize the capability statement |
+| `@fhir.before_request` | Hook before each request |
+| `@fhir.after_request` | Hook after each request |
+| `@fhir.post_process_read(type)` | Post-process reads |
+| `@fhir.post_process_search(type)` | Post-process searches |
+| `@fhir.on_read(type)` | Alias for `post_process_read` |
+| `@fhir.on_search(type)` | Alias for `post_process_search` |
+| `@fhir.consent(type)` | Consent rules |
+| `@fhir.on_create(type)` | Hook on create (POST) |
+| `@fhir.on_update(type)` | Hook on update (PUT) |
+| `@fhir.on_delete(type)` | Hook on delete (DELETE) |
+| `@fhir.operation(name, scope, type)` | Custom `$operation` |
+| `@fhir.oauth_set_instance` | Configure OAuth token |
+| `@fhir.oauth_get_introspection` | Token introspection |
+| `@fhir.oauth_get_user_info` | Extract user info |
+| `@fhir.oauth_verify_resource_id(type)` | Verify access by resource ID |
+| `@fhir.oauth_verify_resource_content(type)` | Verify access by resource content |
+| `@fhir.oauth_verify_history(type)` | Verify access to history |
+| `@fhir.oauth_verify_delete(type)` | Verify delete access |
+| `@fhir.oauth_verify_search(type)` | Verify search access |
+| `@fhir.oauth_verify_system_level` | Verify system-level access |
+| `@fhir.validate_resource(type)` | Custom resource validation |
+| `@fhir.validate_bundle` | Custom bundle validation |
 
-class CustomInteraction(Interaction):
+### 1.5.9. Configuration
 
-    def on_before_request(self, fhir_service, fhir_request, body, timeout):
-        #Extract the user and roles for this request
-        #so consent can be evaluated.
-        self.requesting_user = fhir_request.Username
-        self.requesting_roles = fhir_request.Roles
-
-    def on_after_request(self, fhir_service, fhir_request, fhir_response, body):
-        #Clear the user and roles between requests.
-        self.requesting_user = ""
-        self.requesting_roles = ""
-
-    def post_process_read(self, fhir_object):
-        #Evaluate consent based on the resource and user/roles.
-        #Returning 0 indicates this resource shouldn't be displayed - a 404 Not Found
-        #will be returned to the user.
-        return self.consent(fhir_object['resourceType'],
-                        self.requesting_user,
-                        self.requesting_roles)
-
-    def post_process_search(self, rs, resource_type):
-        #Iterate through each resource in the search set and evaluate
-        #consent based on the resource and user/roles.
-        #Each row marked as deleted and saved will be excluded from the Bundle.
-        rs._SetIterator(0)
-        while rs._Next():
-            if not self.consent(rs.ResourceType,
-                            self.requesting_user,
-                            self.requesting_roles):
-                #Mark the row as deleted and save it.
-                rs.MarkAsDeleted()
-                rs._SaveRow()
-
-    def consent(self, resource_type, user, roles):
-        #Example consent logic - only allow users with the role '%All' to see
-        #Observation resources.
-        if resource_type == 'Observation':
-            if '%All' in roles:
-                return True
-            else:
-                return False
-        else:
-            return True
+The module path and name are configured via environment variables:
 
 ```
+FHIR_CUSTOMIZATION_PATH=/irisdev/app/src/FHIRSERVER/python/
+FHIR_CUSTOMIZATION_MODULE=custom_decorators
+```
 
-### 1.5.9. Too long, do a summary
+If not set, the defaults above are used. The module must be importable and should register decorators at import time.
 
-The `FHIR.Python.Interactions` class is a wrapper to call the python class.
+### 1.5.10. Too long, do a summary
 
-IRIS abstracts classes are implemented to wrap python abstract classes 🥳.
-
-That help us to keep python code and ObjectScript code separated and for so benefit from the best of both worlds.
+The ObjectScript classes load `custom_decorators.py`, collect registered decorators, and invoke them during FHIR interactions.
+If no decorator exists for a hook, the default ObjectScript behavior is preserved via `##super(...)`.

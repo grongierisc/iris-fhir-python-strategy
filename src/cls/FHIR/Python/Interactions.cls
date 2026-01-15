@@ -1,31 +1,39 @@
-Class FHIR.Python.Interactions Extends (HS.FHIRServer.Storage.Json.Interactions, FHIR.Python.Helper)
+Class FHIR.Python.Interactions Extends (HS.FHIRServer.Storage.JsonAdvSQL.Interactions, FHIR.Python.Helper)
 {
 
-Parameter OAuth2TokenHandlerClass As %String = "FHIR.Python.OAuth2Token";
+// Commented for using the default values that support Smart on FHIR
 
-Method %OnNew(pStrategy As HS.FHIRServer.Storage.Json.InteractionsStrategy) As %Status
+// Parameter OAuth2TokenHandlerClass As %String = "FHIR.Python.OAuth2Token";
+
+Parameter ResourceValidatorClass = "FHIR.Python.ResourceValidator";
+
+// Parameter OperationHandlerClass As %String = "FHIR.Python.OperationHandler";
+
+Parameter BatchHandlerClass As %String = "FHIR.Python.BundleProcessor";
+
+Method %OnNew(pStrategy As HS.FHIRServer.Storage.JsonAdvSQL.InteractionsStrategy) As %Status
 {
 	// %OnNew is called when the object is created.
-	// The pStrategy parameter is the strategy object that created this object.
-	// The default implementation does nothing
-	// Frist set the python path from an env var
-	set ..PythonPath = $system.Util.GetEnviron("INTERACTION_PATH")
-	// Then set the python class name from the env var
-	set ..PythonClassname = $system.Util.GetEnviron("INTERACTION_CLASS")
-	// Then set the python module name from the env var
-	set ..PythonModule = $system.Util.GetEnviron("INTERACTION_MODULE")
+	// Load the Python decorator registry
+	do ..GetCustomizationSettings(.tPythonPath, .tPythonModule)
+	set ..PythonPath = tPythonPath
+	set ..PythonModule = tPythonModule
 
-	if (..PythonPath = "") || (..PythonClassname = "") || (..PythonModule = "") {
-		//quit ##super(pStrategy)
-		set ..PythonPath = "/irisdev/app/src/python/"
-		set ..PythonClassname = "CustomInteraction"
-		set ..PythonModule = "custom"
-	}
-
-
-	// Then set the python class
+	// Set Python path and import the module (which registers decorators)
 	do ..SetPythonPath(..PythonPath)
-	set ..PythonClass = ##class(FHIR.Python.Interactions).GetPythonInstance(..PythonModule, ..PythonClassname)
+	set importlib = ##class(%SYS.Python).Import("importlib")
+	set ..PythonModule = importlib."import_module"(..PythonModule)
+	do importlib."reload"(..PythonModule)
+	
+	// Get the fhir decorator registry
+	set fhirDecorators = ##class(%SYS.Python).Import("fhir_decorators")
+	set ..PythonClass = fhirDecorators.fhir
+	
+	// Set interactions reference for helper functions
+	if $ISOBJECT(..PythonModule) {
+		set context = ..PythonModule.context
+		set context.interactions = $this
+	}
 
 	quit ##super(pStrategy)
 }
@@ -36,13 +44,121 @@ Method OnBeforeRequest(
 	pTimeout As %Integer)
 {
 	// OnBeforeRequest is called before each request is processed.
+	// Call all registered before_request handlers
 	if $ISOBJECT(..PythonClass) {
+		set requestMethod = pFHIRRequest.RequestMethod
+		set resourceType = pFHIRRequest.Type
+		set hasHandlers = 0
+		set handlers = ..PythonClass."get_before_request_handlers"()
+		if handlers."__len__"() > 0 {
+			set hasHandlers = 1
+		}
+
+		if (requestMethod = "POST") && (resourceType '= "") {
+			set createHandlers = ..PythonClass."get_create_handlers"(resourceType)
+			if createHandlers."__len__"() > 0 {
+				set hasHandlers = 1
+			}
+		}
+		if (requestMethod = "PUT") && (resourceType '= "") {
+			set updateHandlers = ..PythonClass."get_update_handlers"(resourceType)
+			if updateHandlers."__len__"() > 0 {
+				set hasHandlers = 1
+			}
+		}
+		if (requestMethod = "DELETE") && (resourceType '= "") {
+			set deleteHandlers = ..PythonClass."get_delete_handlers"(resourceType)
+			if deleteHandlers."__len__"() > 0 {
+				set hasHandlers = 1
+			}
+		}
+
+		if 'hasHandlers {
+			do ##super(pFHIRService, pFHIRRequest, pTimeout)
+			quit
+		}
+
 		set body = ##class(%SYS.Python).None()
 		if pFHIRRequest.Json '= "" {
 			set jsonLib = ##class(%SYS.Python).Import("json")
 			set body = jsonLib.loads(pFHIRRequest.Json.%ToJSON())
 		}
-		do ..PythonClass."on_before_request"(pFHIRService, pFHIRRequest, body, pTimeout)
+		
+		if handlers."__len__"() > 0 {
+			set iterator = handlers."__iter__"()
+			set handler = ""
+			Try {
+				for {
+					set handler = iterator."__next__"()
+					quit:handler=""
+					do handler."__call__"(pFHIRService, pFHIRRequest, body, pTimeout)
+				}
+			}
+			Catch ex {
+				if (ex.Data '[ "StopIteration") { // StopIteration
+					throw ex
+				}
+			}
+		}
+		
+		if (requestMethod = "POST") && (resourceType '= "") {
+			if createHandlers."__len__"() > 0 {
+				set iterator = createHandlers."__iter__"()
+				set handler = ""
+				Try {
+					for {
+						set handler = iterator."__next__"()
+						quit:handler=""
+						do handler."__call__"(pFHIRService, pFHIRRequest, body, pTimeout)
+					}
+				}
+				Catch ex {
+					if (ex.Data '[ "StopIteration") { // StopIteration
+						throw ex
+					}
+				}
+			}
+		}
+		
+		if (requestMethod = "PUT") && (resourceType '= "") {
+			if updateHandlers."__len__"() > 0 {
+				set iterator = updateHandlers."__iter__"()
+				set handler = ""
+				Try {
+					for {
+						set handler = iterator."__next__"()
+						quit:handler=""
+						do handler."__call__"(pFHIRService, pFHIRRequest, body, pTimeout)
+					}
+				}
+				Catch ex {
+					if (ex.Data '[ "StopIteration") { // StopIteration
+						throw ex
+					}
+				}
+			}
+		}
+		
+		if (requestMethod = "DELETE") && (resourceType '= "") {
+			if deleteHandlers."__len__"() > 0 {
+				set iterator = deleteHandlers."__iter__"()
+				set handler = ""
+				Try {
+					for {
+						set handler = iterator."__next__"()
+						quit:handler=""
+						do handler."__call__"(pFHIRService, pFHIRRequest, body, pTimeout)
+					}
+				}
+				Catch ex {
+					if (ex.Data '[ "StopIteration") { // StopIteration
+						throw ex
+					}
+				}
+			}
+		}
+	} else {
+		do ##super(pFHIRService, pFHIRRequest, pTimeout)
 	}
 }
 
@@ -52,27 +168,80 @@ Method OnAfterRequest(
 	pFHIRResponse As HS.FHIRServer.API.Data.Response)
 {
 	// OnAfterRequest is called after each request is processed.
+	// Call all registered after_request handlers
 	if $ISOBJECT(..PythonClass) {
+		set handlers = ..PythonClass."get_after_request_handlers"()
+		if handlers."__len__"() = 0 {
+			do ##super(pFHIRService, pFHIRRequest, pFHIRResponse)
+			quit
+		}
+
 		set body = ##class(%SYS.Python).None()
 		if pFHIRResponse.Json '= "" {
 			set jsonLib = ##class(%SYS.Python).Import("json")
 			set body = jsonLib.loads(pFHIRResponse.Json.%ToJSON())
 		}
-		do ..PythonClass."on_after_request"(pFHIRService, pFHIRRequest, pFHIRResponse, body)
+		
+		if handlers."__len__"() > 0 {
+			set iterator = handlers."__iter__"()
+			set handler = ""
+			Try {
+				for {
+					set handler = iterator."__next__"()
+					quit:handler=""
+					do handler."__call__"(pFHIRService, pFHIRRequest, pFHIRResponse, body)
+				}
+			}
+			Catch ex {
+				if (ex.Data '[ "StopIteration") { // StopIteration
+					throw ex
+				}
+			}
+		}
+	} else {
+		do ##super(pFHIRService, pFHIRRequest, pFHIRResponse)
 	}
 }
 
 Method PostProcessRead(pResourceObject As %DynamicObject) As %Boolean
 {
 	// PostProcessRead is called after a resource is read from the database.
-	// Return 1 to indicate that the resource should be included in the response.
-	// Return 0 to indicate that the resource should be excluded from the response.
+	// Call all registered post_process_read handlers
 	if $ISOBJECT(..PythonClass) {
-		if pResourceObject '= "" {
-			set jsonLib = ##class(%SYS.Python).Import("json")
-			set body = jsonLib.loads(pResourceObject.%ToJSON())
+		if pResourceObject = "" {
+			return ##super(pResourceObject)
 		}
-		return ..PythonClass."post_process_read"(body)
+		set jsonLib = ##class(%SYS.Python).Import("json")
+		set body = jsonLib.loads(pResourceObject.%ToJSON())
+		set resourceType = body."%Get"("resourceType")
+		
+		// Get all post_process_read handlers for this resource type
+		set handlers = ..PythonClass."get_post_process_read_handlers"(resourceType)
+		if handlers."__len__"() = 0 {
+			return ##super(pResourceObject)
+		}
+		if handlers."__len__"() > 0 {
+			set iterator = handlers."__iter__"()
+			set handler = ""
+			Try {
+				for {
+					set handler = iterator."__next__"()
+					quit:handler=""
+					set result = handler."__call__"(body)
+					// If any handler returns False, exclude the resource
+					if 'result {
+						return 0
+					}
+				}
+			}
+			Catch ex {
+				if (ex.Data '[ "StopIteration") { // StopIteration
+					throw ex
+				}
+			}
+		}
+	} else {
+		return ##super(pResourceObject)
 	}
 	quit 1
 }
@@ -82,10 +251,31 @@ Method PostProcessSearch(
 	pResourceType As %String) As %Status
 {
 	// PostProcessSearch is called after a search is performed.
-	// Return $$$OK to indicate that the search was successful.
-	// Return an error code to indicate that the search failed.
+	// Call all registered post_process_search handlers
 	if $ISOBJECT(..PythonClass) {
-		return ..PythonClass."post_process_search"(pRS, pResourceType)
+		// Get all post_process_search handlers for this resource type
+		set handlers = ..PythonClass."get_post_process_search_handlers"(pResourceType)
+		if handlers."__len__"() = 0 {
+			quit ##super(pRS, pResourceType)
+		}
+		if handlers."__len__"() > 0 {
+			set iterator = handlers."__iter__"()
+			set handler = ""
+			Try {
+				for {
+					set handler = iterator."__next__"()
+					quit:handler=""
+					do handler."__call__"(pRS, pResourceType)
+				}
+			}
+			Catch ex {
+				if (ex.Data '[ "StopIteration") { // StopIteration
+					throw ex
+				}
+			}
+		}
+	} else {
+		quit ##super(pRS, pResourceType)
 	}
 	quit $$$OK
 }
