@@ -13,7 +13,7 @@ class DummyRequest:
         self.Roles = roles
 
 
-@pytest.mark.e2e
+@pytest.mark.unit
 def test_handler_pipeline_runs_in_expected_order():
     fhir = FhirDecorators()
     state = {"calls": []}
@@ -45,7 +45,7 @@ def test_handler_pipeline_runs_in_expected_order():
     assert state["calls"] == [("before", "alice"), ("read", "1"), ("after", "alice")]
 
 
-@pytest.mark.e2e
+@pytest.mark.unit
 def test_capability_statement_pipeline():
     fhir = FhirDecorators()
 
