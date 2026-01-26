@@ -34,6 +34,17 @@
         "showSystem": false,
         "username": "_SYSTEM"
       }
+    ],
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
+    "python-envs.pythonProjects": [],
+    "python.testing.pytestArgs": [
+      "./tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    // Update python sys path to include the FHIR server utilities
+    "python.analysis.extraPaths": [
+      "./src/python"
     ]
 
 }

@@ -34,3 +34,9 @@ COPY --chown=${ISC_PACKAGE_MGRUSER}:${ISC_PACKAGE_IRISGROUP} . /irisdev/app/
 
 # Install the requirements
 RUN pip3 install -r /irisdev/app/requirements.txt --break-system-packages
+
+RUN iris start ${ISC_PACKAGE_INSTANCENAME} && \
+	iris merge ${ISC_PACKAGE_INSTANCENAME} /irisdev/app/merge.cpf && \
+	iris session ${ISC_PACKAGE_INSTANCENAME} < /irisdev/app/iris.script && \
+	iris stop ${ISC_PACKAGE_INSTANCENAME} quietly
+

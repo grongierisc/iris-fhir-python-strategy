@@ -21,9 +21,11 @@ Method %OnNew(pStrategy As HS.FHIRServer.Storage.JsonAdvSQL.InteractionsStrategy
 
 	// Set Python path and import the module (which registers decorators)
 	do ..SetPythonPath(..PythonPath)
-	set importlib = ##class(%SYS.Python).Import("importlib")
-	set ..PythonModule = importlib."import_module"(..PythonModule)
-	do importlib."reload"(..PythonModule)
+	if ..TryImportModule(..PythonModule, .tModuleObj) {
+		set ..PythonModule = tModuleObj
+	} else {
+		set ..PythonModule = ""
+	}
 	
 	// Get the fhir decorator registry
 	set fhirDecorators = ##class(%SYS.Python).Import("fhir_decorators")

@@ -466,7 +466,7 @@ Method OnBeforeRequest(
 
 ### 1.5.7. Interactions in Python
 
-`FHIR.Python.Interactions` class calls handlers registered with decorators in `custom_decorators.py`.
+`FHIR.Python.Interactions` class calls handlers registered with decorators in `examples/custom_decorators.py`.
 
 ```python
 from fhir_decorators import fhir
@@ -515,13 +515,13 @@ def filter_patient_read(fhir_object):
 The module path and name are configured via environment variables:
 
 ```
-FHIR_CUSTOMIZATION_PATH=/irisdev/app/src/FHIRSERVER/python/
-FHIR_CUSTOMIZATION_MODULE=custom_decorators
+FHIR_CUSTOMIZATION_PATH=/irisdev/app/
+FHIR_CUSTOMIZATION_MODULE=examples.custom_decorators
 ```
 
 If not set, the defaults above are used. The module must be importable and should register decorators at import time.
 
 ### 1.5.10. Too long, do a summary
 
-The ObjectScript classes load `custom_decorators.py`, collect registered decorators, and invoke them during FHIR interactions.
+The ObjectScript classes load `examples/custom_decorators.py`, collect registered decorators, and invoke them during FHIR interactions.
 If no decorator exists for a hook, the default ObjectScript behavior is preserved via `##super(...)`.

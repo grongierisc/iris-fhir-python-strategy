@@ -5,11 +5,20 @@ This module demonstrates how to use decorators to customize FHIR server behavior
 Simply import fhir and decorate your functions.
 """
 
-from fhir_decorators import fhir
-import jwt
-import iris
-from deepdiff import DeepDiff
 import json
+from contextvars import ContextVar
+
+try:
+    from fhir_decorators import fhir
+    from iris_adapter import dynamic_object_from_json
+except ModuleNotFoundError:
+    import sys
+    from pathlib import Path
+
+    PROJECT_ROOT = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(PROJECT_ROOT / "src" / "python"))
+    from fhir_decorators import fhir
+    from iris_adapter import dynamic_object_from_json
 
 # ==================== State Management ====================
 # Use a simple class to manage request-scoped state
@@ -21,9 +30,24 @@ class RequestContext:
         self.scope_list = []
         self.security_list = []
         self.interactions = None  # Will be set by ObjectScript
+        self.token_string = ""
+        self.oauth_client = ""
+        self.base_url = ""
+        self.username = ""
 
-# Global context (will be set per request)
-context = RequestContext()
+_request_context = ContextVar("fhir_request_context", default=None)
+
+
+def get_request_context():
+    ctx = _request_context.get()
+    if ctx is None:
+        ctx = RequestContext()
+        _request_context.set(ctx)
+    return ctx
+
+
+def set_request_context(ctx):
+    _request_context.set(ctx)
 
 
 # ==================== Capability Statement ====================
@@ -47,18 +71,21 @@ def extract_user_context(fhir_service, fhir_request, body, timeout):
     """
     Extract user and roles for consent evaluation.
     """
-    context.requesting_user = fhir_request.Username
-    context.requesting_roles = fhir_request.Roles
-    context.scope_list = []
-    context.security_list = []
+    ctx = RequestContext()
+    ctx.requesting_user = fhir_request.Username
+    ctx.requesting_roles = fhir_request.Roles
+    ctx.scope_list = []
+    ctx.security_list = []
+    set_request_context(ctx)
     
     # Uncomment to extract OAuth token scopes
     # token = fhir_request.AdditionalInfo.GetAt("USER:OAuthToken") or ""
     # if token:
+    #     import jwt
     #     decoded_token = jwt.decode(token, options={"verify_signature": False})
-    #     context.scope_list = decoded_token.get("scope", "").split(" ")
-    #     for scope in context.scope_list:
-    #         context.security_list += get_security(scope)
+    #     ctx.scope_list = decoded_token.get("scope", "").split(" ")
+    #     for scope in ctx.scope_list:
+    #         ctx.security_list += get_security(scope)
 
 
 @fhir.after_request
@@ -66,10 +93,7 @@ def cleanup_context(fhir_service, fhir_request, fhir_response, body):
     """
     Clear request-scoped state.
     """
-    context.requesting_user = ""
-    context.requesting_roles = ""
-    context.scope_list = []
-    context.security_list = []
+    set_request_context(RequestContext())
 
 
 # ==================== Read/Search Processing ====================
@@ -99,12 +123,13 @@ def filter_patient_search(rs, resource_type):
     """
     Filter Patient search results based on consent.
     """
+    ctx = get_request_context()
     # Uncomment to enable consent filtering
     # rs._SetIterator(0)
     # while rs._Next():
     #     resource_id = rs._Get("ResourceId")
     #     version_id = rs._Get("VersionId")
-    #     json_str = context.interactions.Read(resource_type, resource_id, version_id)._ToJSON()
+    #     json_str = ctx.interactions.Read(resource_type, resource_id, version_id)._ToJSON()
     #     resource_dict = json.loads(json_str)
     #     if not check_consent(resource_dict):
     #         rs.MarkAsDeleted()
@@ -119,10 +144,11 @@ def patient_consent_rules(fhir_object, user_context):
     """
     Check if user has consent to access Patient resource.
     """
+    ctx = get_request_context()
     if "meta" in fhir_object:
         if "security" in fhir_object["meta"]:
             for security in fhir_object["meta"]["security"]:
-                if security.get("code") in context.security_list:
+                if security.get("code") in ctx.security_list:
                     return False
     return True
 
@@ -155,6 +181,8 @@ def patient_diff_operation(operation_name, operation_scope, body,
     """
     Custom $diff operation to compare two Patient resources.
     """
+    from deepdiff import DeepDiff
+
     # Get the primary resource
     primary_resource = json.loads(
         fhir_service.interactions.Read(
@@ -170,8 +198,7 @@ def patient_diff_operation(operation_name, operation_scope, body,
     diff = DeepDiff(primary_resource, secondary_resource, ignore_order=True).to_json()
     
     # Create response
-    result = iris.cls('%DynamicObject')._FromJSON(diff)
-    fhir_response.Json = result
+    fhir_response.Json = dynamic_object_from_json(diff)
     
     return fhir_response
 
@@ -199,9 +226,12 @@ def validate_patient_operation(operation_name, operation_scope, body,
 
 def get_security(scope):
     """Extract security labels from Permission resources."""
+    ctx = get_request_context()
     security = []
+    if ctx.interactions is None:
+        return security
     try:
-        permission = context.interactions.Read("Permission", scope)._ToJSON()
+        permission = ctx.interactions.Read("Permission", scope)._ToJSON()
         permission_dict = json.loads(permission)
         for rule in permission_dict.get("rule", []):
             for data in rule.get("data", []):
@@ -217,10 +247,11 @@ def check_consent(resource_dict):
     Check if user has consent to access resource.
     Returns False if access should be denied.
     """
+    ctx = get_request_context()
     if "meta" in resource_dict:
         if "security" in resource_dict["meta"]:
             for security in resource_dict["meta"]["security"]:
-                if security.get("code") in context.security_list:
+                if security.get("code") in ctx.security_list:
                     return False
     return True
 
@@ -230,10 +261,11 @@ def check_consent(resource_dict):
 @fhir.oauth_set_instance
 def setup_oauth_token(token_string, oauth_client, base_url, username):
     """Setup OAuth token instance."""
-    context.token_string = token_string
-    context.oauth_client = oauth_client
-    context.base_url = base_url
-    context.username = username
+    ctx = get_request_context()
+    ctx.token_string = token_string
+    ctx.oauth_client = oauth_client
+    ctx.base_url = base_url
+    ctx.username = username
     print(f"OAuth token set for user: {username}")
 
 
@@ -243,13 +275,14 @@ def get_token_introspection():
     Get OAuth token introspection.
     Returns JWT object from introspection call.
     """
+    ctx = get_request_context()
     # Example: Call your OAuth server's introspection endpoint
     # In real implementation, make HTTP request to introspection endpoint
     return {
         "active": True,
         "scope": "patient/*.read patient/*.write",
-        "client_id": context.oauth_client,
-        "username": context.username,
+        "client_id": ctx.oauth_client,
+        "username": ctx.username,
         "token_type": "Bearer"
     }
 
@@ -260,9 +293,10 @@ def extract_user_info(basic_auth_username, basic_auth_roles):
     Extract user information from OAuth token.
     Returns dict with user info.
     """
+    ctx = get_request_context()
     # Example: Extract from token or call user info endpoint
     return {
-        "Username": context.username or basic_auth_username,
+        "Username": ctx.username or basic_auth_username,
         "Roles": "doctor,admin",
         "Department": "Cardiology"
     }
@@ -299,13 +333,19 @@ def verify_patient_content_access(resource_dict, required_privilege, allow_share
                     raise PermissionError("Insufficient clearance for restricted Patient data")
 
 
+def has_clearance_for_restricted():
+    # Placeholder for custom authorization logic.
+    return False
+
+
 @fhir.oauth_verify_delete("Patient")
 def verify_patient_deletion(resource_type, resource_id, required_privilege):
     """
     Verify OAuth access for Patient deletion.
     """
+    ctx = get_request_context()
     # Example: Only admins can delete patients
-    if "admin" not in context.roles.lower():
+    if "admin" not in ctx.requesting_roles.lower():
         raise PermissionError("Only administrators can delete Patient resources")
 
 
@@ -330,8 +370,9 @@ def verify_system_access():
     Verify OAuth access for system-level operations.
     System-level operations require special privileges.
     """
+    ctx = get_request_context()
     # Example: Only system administrators can perform system-level operations
-    if "system-admin" not in context.roles.lower():
+    if "system-admin" not in ctx.requesting_roles.lower():
         raise PermissionError("System-level operations require system-admin role")
 
 
@@ -406,5 +447,3 @@ def validate_transaction_bundle(resource_object, fhir_version):
             request = entry["request"]
             if request.get("method") not in ["GET", "POST", "PUT", "DELETE", "PATCH"]:
                 raise ValueError(f"Invalid HTTP method: {request.get('method')}")
-
-

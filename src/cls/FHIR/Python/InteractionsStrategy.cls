@@ -14,8 +14,7 @@ Method GetMetadataResource() As %DynamicObject
 
 	// Set Python path and import module
 	do ..SetPythonPath(..PythonPath)
-	set importlib = ##class(%SYS.Python).Import("importlib")
-	do importlib."import_module"(..PythonModule)
+	do ..TryImportModule(..PythonModule, .tModuleObj, 0)
 	
 	// Get the fhir decorator registry
 	set fhirDecorators = ##class(%SYS.Python).Import("fhir_decorators")

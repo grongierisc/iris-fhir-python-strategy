@@ -1,31 +1,17 @@
 services:
 
-  init-permissions:
-    image: alpine:latest
-    volumes:
-      - .:/irisdev/app
-      - iris-dur:/dur
-    command: >
-      sh -c "
-        echo 'Fixing /dur directory permissions...' &&
-        chown -R 51773:51773 /dur &&
-        echo 'Permissions fixed successfully'
-      "
-    
   iris:
+    image: iris-fhr-python-strategy:latest
     build: 
       context: .
       dockerfile: dockerfile
     restart: always
-    environment:
-      - ISC_CPF_MERGE_FILE=/irisdev/app/merge.cpf
-      - ISC_DATA_DIRECTORY=/dur/iris
     ports: 
       - 1972
       - 8082:52773
     volumes:
       - .:/irisdev/app
-      - iris-dur:/dur
+
 
   webgateway:
     image: containers.intersystems.com/intersystems/webgateway:latest-em
@@ -39,6 +25,3 @@ services:
     volumes:
       - ./webgateway:/webgateway
       - ./webgateway/cert:/opt/cert
-
-volumes:
-  iris-dur:

@@ -31,14 +31,33 @@ ClassMethod GetPythonInstance(
 	pModule,
 	pRemoteClassname) As %SYS.Python
 {
-    set importlib = ##class(%SYS.Python).Import("importlib")
     set builtins = ##class(%SYS.Python).Import("builtins")
-
-    set module = importlib."import_module"(pModule)
-    do importlib."reload"(module)
+    if '..TryImportModule(pModule, .module) {
+        quit ""
+    }
 
     set class = builtins.getattr(module, pRemoteClassname)
     return class."__new__"(class)
+}
+
+ClassMethod TryImportModule(
+	pModule As %String,
+	Output pModuleObj As %SYS.Python,
+	pReload As %Boolean = 1) As %Boolean
+{
+	set pModuleObj = ""
+	set importlib = ##class(%SYS.Python).Import("importlib")
+	Try {
+		set pModuleObj = importlib."import_module"(pModule)
+		if pReload {
+			do importlib."reload"(pModuleObj)
+		}
+		quit 1
+	}
+	Catch ex {
+		// Allow the server to start even when customization module is missing.
+		quit 0
+	}
 }
 
 ClassMethod GetCustomizationSettings(
@@ -49,8 +68,8 @@ ClassMethod GetCustomizationSettings(
 	set pPythonModule = $system.Util.GetEnviron("FHIR_CUSTOMIZATION_MODULE")
 
 	if (pPythonPath = "") || (pPythonModule = "") {
-		set pPythonPath = "/irisdev/app/src/FHIRSERVER/python/"
-		set pPythonModule = "custom_decorators"
+		set pPythonPath = "/irisdev/app/"
+		set pPythonModule = "examples.custom_decorators"
 	}
 
 	quit $$$OK

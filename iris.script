@@ -1,0 +1,11 @@
+
+    zn "FHIRSERVER"
+
+    set fhirVersion="R4"
+    set fhirPath="/fhir/r4"
+    set strategy="FHIR.Python.InteractionsStrategy"
+    zwrite "Enabling FHIR server at path "_fhirPath_" with version "_fhirVersion_" and strategy "_strategy
+    do ##class(HS.FHIRServer.Installer).InstallInstance(fhirPath, strategy, fhirVersion, "", 0)
+    zwrite "#### FHIR Server is enabled ####"
+
+    halt
