@@ -77,7 +77,7 @@ Method ValidateObject(
 	pPath As %String,
 	pStati As %Status,
 	pIsInTransaction As %Boolean = 0,
-	pCodeableRefInfo As %String) [ Internal ]
+	pCodeableRefInfo As %String = "") [ Internal ]
 {
 	// Call superclass to perform standard validation
 	set stati = ##super(pFHIRObject, pFHIRTypename, pPath, pStati, pIsInTransaction, pCodeableRefInfo)
@@ -100,20 +100,23 @@ Method ValidateObject(
 	set jsonLib = ##class(%SYS.Python).Import("json")
 	set resourceJson = pFHIRObject.%ToJSON()
 	set resourcePyObj = jsonLib.loads(resourceJson)
-	set handlers = registry."get_validate_object_handlers"(resourceType)
-	if handlers."__len__"() > 0 {
-		set iterator = handlers."__iter__"()
-		set handler = ""
-		Try {
-			for {
-				set handler = iterator."__next__"()
-				quit:handler=""
-				do handler."__call__"(resourcePyObj, pPath, .stati, pIsInTransaction)
+	set pyBuiltins = ##class(%SYS.Python).Import("builtins")
+	if pyBuiltins.hasattr(registry, "get_validate_object_handlers") {
+		set handlers = registry."get_validate_object_handlers"(resourceType)
+		if handlers."__len__"() > 0 {
+			set iterator = handlers."__iter__"()
+			set handler = ""
+			Try {
+				for {
+					set handler = iterator."__next__"()
+					quit:handler=""
+					do handler."__call__"(resourcePyObj, pPath, .stati, pIsInTransaction)
+				}
 			}
-		}
-		Catch ex {
-			if (ex.Data '[ "StopIteration") { // StopIteration
-				throw ex
+			Catch ex {
+				if (ex.Data '[ "StopIteration") { // StopIteration
+					throw ex
+				}
 			}
 		}
 	}

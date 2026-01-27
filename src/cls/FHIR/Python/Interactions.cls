@@ -13,6 +13,9 @@ Parameter BatchHandlerClass As %String = "FHIR.Python.BundleProcessor";
 
 Method %OnNew(pStrategy As HS.FHIRServer.Storage.JsonAdvSQL.InteractionsStrategy) As %Status
 {
+
+	#; write "In FHIR.Python.Interactions.%OnNew",!
+
 	// %OnNew is called when the object is created.
 	// Load the Python decorator registry
 	do ..GetCustomizationSettings(.tPythonPath, .tPythonModule)
@@ -33,8 +36,14 @@ Method %OnNew(pStrategy As HS.FHIRServer.Storage.JsonAdvSQL.InteractionsStrategy
 	
 	// Set interactions reference for helper functions
 	if $ISOBJECT(..PythonModule) {
-		set context = ..PythonModule.context
-		set context.interactions = $this
+		set pyBuiltins = ##class(%SYS.Python).Import("builtins")
+		if pyBuiltins.hasattr(..PythonModule, "get_request_context") {
+			set context = ..PythonModule."get_request_context"()
+			set context.interactions = $this
+		} elseif pyBuiltins.hasattr(..PythonModule, "context") {
+			set context = ..PythonModule.context
+			set context.interactions = $this
+		}
 	}
 
 	quit ##super(pStrategy)
@@ -45,6 +54,9 @@ Method OnBeforeRequest(
 	pFHIRRequest As HS.FHIRServer.API.Data.Request,
 	pTimeout As %Integer)
 {
+	if $system.Util.GetEnviron("FHIR_PYTHON_DEBUG")=1 {
+		write "In OnBeforeRequest",!
+	}
 	// OnBeforeRequest is called before each request is processed.
 	// Call all registered before_request handlers
 	if $ISOBJECT(..PythonClass) {
@@ -215,7 +227,7 @@ Method PostProcessRead(pResourceObject As %DynamicObject) As %Boolean
 		}
 		set jsonLib = ##class(%SYS.Python).Import("json")
 		set body = jsonLib.loads(pResourceObject.%ToJSON())
-		set resourceType = body."%Get"("resourceType")
+		set resourceType = body."get"("resourceType")
 		
 		// Get all post_process_read handlers for this resource type
 		set handlers = ..PythonClass."get_post_process_read_handlers"(resourceType)
@@ -254,15 +266,16 @@ Method PostProcessSearch(
 {
 	// PostProcessSearch is called after a search is performed.
 	// Call all registered post_process_search handlers
-	if $ISOBJECT(..PythonClass) {
-		// Get all post_process_search handlers for this resource type
-		set handlers = ..PythonClass."get_post_process_search_handlers"(pResourceType)
-		if handlers."__len__"() = 0 {
-			quit ##super(pRS, pResourceType)
-		}
-		if handlers."__len__"() > 0 {
-			set iterator = handlers."__iter__"()
-			set handler = ""
+		if $ISOBJECT(..PythonClass) {
+			// Get all post_process_search handlers for this resource type
+			set handlers = ..PythonClass."get_post_process_search_handlers"(pResourceType)
+			if handlers."__len__"() = 0 {
+				do ##super(pRS, pResourceType)
+				quit $$$OK
+			}
+			if handlers."__len__"() > 0 {
+				set iterator = handlers."__iter__"()
+				set handler = ""
 			Try {
 				for {
 					set handler = iterator."__next__"()
@@ -275,11 +288,12 @@ Method PostProcessSearch(
 					throw ex
 				}
 			}
+			}
+		} else {
+			do ##super(pRS, pResourceType)
+			quit $$$OK
 		}
-	} else {
-		quit ##super(pRS, pResourceType)
-	}
-	quit $$$OK
+		quit $$$OK
 }
 
 Method Read(

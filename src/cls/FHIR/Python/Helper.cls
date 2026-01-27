@@ -52,11 +52,11 @@ ClassMethod TryImportModule(
 		if pReload {
 			do importlib."reload"(pModuleObj)
 		}
-		quit 1
+		return 1
 	}
 	Catch ex {
 		// Allow the server to start even when customization module is missing.
-		quit 0
+		return 0
 	}
 }
 

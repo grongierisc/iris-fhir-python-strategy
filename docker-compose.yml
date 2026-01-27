@@ -6,6 +6,10 @@ services:
       context: .
       dockerfile: dockerfile
     restart: always
+    environment:
+      - ISC_CPF_MERGE_FILE=/irisdev/app/merge.cpf
+      - FHIR_CUSTOMIZATION_PATH=/irisdev/app/tests/e2e/fixtures/
+      - FHIR_PYTHON_MODULE=fhir_customization
     ports: 
       - 1972
       - 8082:52773
