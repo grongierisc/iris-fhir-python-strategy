@@ -1,6 +1,24 @@
 Class FHIR.Python.ResourceValidator Extends HS.FHIRServer.Util.ResourceValidator
 {
 
+Property Registry As %SYS.Python;
+
+Method GetRegistry() As %SYS.Python
+{
+    if '$IsObject(..Registry) {
+        // Call decorator handlers for additional validation
+        do ##class(FHIR.Python.Helper).GetCustomizationSettings(.customPath, .customModule)
+        
+        do ##class(FHIR.Python.Helper).SetPythonPath(customPath)
+        
+        do ##class(FHIR.Python.Helper).TryImportModule(customModule, .module)
+        
+        set decoratorsModule = ##class(%SYS.Python).Import("fhir_decorators")
+        set ..Registry = decoratorsModule.fhir
+    }
+    return ..Registry
+}
+
 /// @API
 /// ValidateResource validates a FHIR Resource.  If a validation error is found, a
 /// compound %Status is thrown in a StatusException.  The compound %Status starts with a
@@ -17,16 +35,7 @@ Method ValidateResource(
 	// Skip validation for Bundle entries (handled by BundleValidator)
 	if ($get(%inTransactionFlag, $$$NO) '= $$$YES) && (pResourceObject.resourceType '= "CapabilityStatement")
 	{
-
-		// Call decorator handlers for additional validation
-		do ##class(FHIR.Python.Helper).GetCustomizationSettings(.customPath, .customModule)
-		
-		do ##class(FHIR.Python.Helper).SetPythonPath(customPath)
-		
-		do ##class(FHIR.Python.Helper).TryImportModule(customModule, .module)
-		
-		set decoratorsModule = ##class(%SYS.Python).Import("fhir_decorators")
-		set registry = decoratorsModule.fhir
+        set registry = ..GetRegistry()
 		
 		set resourceType = pResourceObject.resourceType
 
@@ -81,15 +90,7 @@ Method ValidateObject(
 	// Call superclass to perform standard validation
 	set stati = ##super(pFHIRObject, pFHIRTypename, pPath, pStati, pIsInTransaction, pCodeableRefInfo)
 
-	// Call decorator handlers for additional resource validation
-	do ##class(FHIR.Python.Helper).GetCustomizationSettings(.customPath, .customModule)
-	
-	do ##class(FHIR.Python.Helper).SetPythonPath(customPath)
-	
-	do ##class(FHIR.Python.Helper).TryImportModule(customModule, .module)
-
-	set decoratorsModule = ##class(%SYS.Python).Import("fhir_decorators")
-	set registry = decoratorsModule.fhir
+    set registry = ..GetRegistry()
 
 	set resourceType = pFHIRTypename
 	// convert pFHIRObject to Python object
