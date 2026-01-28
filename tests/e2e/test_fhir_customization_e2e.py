@@ -191,3 +191,46 @@ def test_search_filtering_hides_blocked_patients(fhir_base_url):
     
     assert allowed_id in ids, "Allowed patient should be in search results"
     assert blocked_id not in ids, "Blocked patient should be filtered out from search results"
+
+
+@pytest.mark.e2e
+def test_unhandled_python_exception_returns_500(fhir_base_url):
+    """
+    Test that a generic Python exception (ZeroDivisionError) in validation
+    results in a 500 error, not a crash of the whole server, and contains details.
+    """
+    org = {"resourceType": "Organization", "name": "Fail Corp"}
+    
+    response = requests.post(
+        f"{fhir_base_url}/fhir/r4/Organization",
+        json=org,
+        headers={"Content-Type": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+    )
+    
+    # We expect 500 because ZeroDivisionError is not mapped to 4xx in Helper.cls
+    assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+    outcome = response.json()
+    assert outcome["resourceType"] == "OperationOutcome"
+    # The diagnostics might contain "ZeroDivisionError" or similar text
+    text = outcome["issue"][0]["details"]["text"]
+    assert "division by zero" in text or "ZeroDivisionError" in text
+
+
+@pytest.mark.e2e
+def test_operation_crash_handling(fhir_base_url):
+    """
+    Test that a custom operation raising a generic Exception return 500.
+    """
+    op_url = f"{fhir_base_url}/fhir/r4/Patient/$crash"
+    response = requests.post(
+        op_url,
+        json={"resourceType": "Parameters"},
+        headers={"Content-Type": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+    )
+    
+    assert response.status_code == 500
+    outcome = response.json()
+    text = outcome["issue"][0]["details"]["text"]
+    assert "Boom! explicit crash" in text

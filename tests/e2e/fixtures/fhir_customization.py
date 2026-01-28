@@ -166,3 +166,16 @@ def validate_bundle(resource_object, fhir_version):
 @fhir.validate_resource("Observation")
 def validate_observation(resource_object, is_in_transaction=False):
     raise ValueError("Custom Error Observation")
+
+
+@fhir.validate_resource("Organization")
+def fail_validation_hard(resource_object, is_in_transaction=False):
+    # This raises a generic exception, expecting 500 Internal Server Error
+    # or a wrapped error handling depending on Helper.cls
+    x = 1 / 0  # ZeroDivisionError
+
+
+@fhir.operation("crash", scope="Type", resource_type="Patient")
+def crash_operation(operation_name, operation_scope, body,
+                   fhir_service, fhir_request, fhir_response):
+    raise Exception("Boom! explicit crash")

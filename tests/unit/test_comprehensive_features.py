@@ -137,3 +137,42 @@ class TestComprehensiveFeatures:
         assert len(handlers) == 1
         assert handlers[0] == oauth_check
 
+    def test_multiple_handlers_execution_order(self):
+        execution_order = []
+        
+        @fhir.on_create("Patient")
+        def handler_one(*args):
+            execution_order.append(1)
+            
+        @fhir.on_create("Patient")
+        def handler_two(*args):
+            execution_order.append(2)
+            
+        handlers = fhir.get_create_handlers("Patient")
+        assert len(handlers) == 2
+        
+        # Simulate execution
+        for h in handlers:
+            h()
+            
+        assert execution_order == [1, 2]
+
+    def test_wildcard_mixed_with_specific(self):
+        @fhir.on_update() # Wildcard
+        def wildcard_handler(*args): pass
+        
+        @fhir.on_update("Patient") # Specific
+        def specific_handler(*args): pass
+        
+        # Getting Patient handlers should return both
+        updated_handlers = fhir.get_update_handlers("Patient")
+        assert len(updated_handlers) == 2
+        assert wildcard_handler in updated_handlers
+        assert specific_handler in updated_handlers
+        
+        # Getting Observation handlers should only return wildcard
+        obs_handlers = fhir.get_update_handlers("Observation")
+        assert len(obs_handlers) == 1
+        assert wildcard_handler in obs_handlers
+        assert specific_handler not in obs_handlers
+
