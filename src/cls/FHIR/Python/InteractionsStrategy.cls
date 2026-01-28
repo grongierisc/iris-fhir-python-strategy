@@ -30,20 +30,12 @@ Method GetMetadataResource() As %DynamicObject
         // Get all capability statement handlers
         set handlers = ..PythonClass."get_capability_statement_handlers"()
         if handlers."__len__"() > 0 {
-	        set iterator = handlers."__iter__"()
-	        set handler = ""
-	        Try {
-		        for {
-			        set handler = iterator."__next__"()
-			        quit:handler=""
-			        set capability = handler."__call__"(capability)
-		        }
+	        set len = handlers."__len__"()
+	        for i=0:1:len-1 {
+		        set handler = handlers."__getitem__"(i)
+		        set capability = handler."__call__"(capability)
 	        }
-	        Catch ex {
-		        if (ex.Code '= 246) { // StopIteration
-			        //throw ex
-		        }
-	        }
+
 	        set tMyCapabilityStatement = {}.%FromJSON(jsonLib.dumps(capability))
         }
 	}

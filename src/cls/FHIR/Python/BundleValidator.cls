@@ -21,20 +21,15 @@ ClassMethod ValidateBundle(
 		do ##super(pResourceObject, pFHIRVersion)
 		quit
 	}
-	set iterator = handlers."__iter__"()
-	set handler = ""
-	Try {
-		for {
-			set handler = iterator."__next__"()
-			quit:handler=""
-			do handler."__call__"(pResourceObject, pFHIRVersion)
-		}
-	}
-	Catch ex {
-		if (ex.Data '[ "StopIteration") { // StopIteration
-			if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
-			throw ex
-		}
+	set len = handlers."__len__"()
+	try {
+	    for i=0:1:len-1 {
+	        set handler = handlers."__getitem__"(i)
+	        do handler."__call__"(pResourceObject, pFHIRVersion)
+	    }
+	} catch ex {
+		if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
+		throw ex
 	}
 }
 

@@ -83,19 +83,14 @@ Method SetInstance(
 				do ##super(pTokenString, pOAuthClient, pBaseURL, pUsername)
 				quit
 			}
-			set iterator = handlers."__iter__"()
-			set handler = ""
-			for {
-				set handler = iterator."__next__"()
-				quit:handler=""
+			set len = handlers."__len__"()
+			for i=0:1:len-1 {
+				set handler = handlers."__getitem__"(i)
 				do handler."__call__"(pTokenString, pOAuthClient, pBaseURL, pUsername)
 			}
-		}
-		Catch ex {
-			if (ex.Data '[ "StopIteration") { // StopIteration
-				$$$FSLog($system.Status.GetOneStatusText(ex.AsStatus()))
-				throw ##class(%Exception.SystemException).%New("Token is invalid")
-			}
+		} Catch ex {
+			// If any exception occurs, fall back to superclass implementation
+			do ##super(pTokenString, pOAuthClient, pBaseURL, pUsername)
 		}
 	} else {
 		do ##super(pTokenString, pOAuthClient, pBaseURL, pUsername)
@@ -169,19 +164,10 @@ Method VerifyResourceIdRequest(
 			do ##super(pResourceType, pResourceId, pRequiredPrivilege)
 			quit
 		}
-		set iterator = handlers."__iter__"()
-		set handler = ""
-		Try {
-			for {
-				set handler = iterator."__next__"()
-				quit:handler=""
-				do handler."__call__"(pResourceType, pResourceId, pRequiredPrivilege)
-			}
-		}
-		Catch ex {
-			if (ex.Data '[ "StopIteration") { // StopIteration
-				throw ex
-			}
+		set len = handlers."__len__"()
+		for i=0:1:len-1 {
+			set handler = handlers."__getitem__"(i)
+			do handler."__call__"(pResourceType, pResourceId, pRequiredPrivilege)
 		}
 	} else {
 		do ##super(pResourceType, pResourceId, pRequiredPrivilege)
@@ -203,19 +189,10 @@ Method VerifyResourceContent(
 			do ##super(pResourceJson, pRequiredPrivilege, pAllowSharedResource)
 			quit
 		}
-		set iterator = handlers."__iter__"()
-		set handler = ""
-		Try {
-			for {
-				set handler = iterator."__next__"()
-				quit:handler=""
-				do handler."__call__"(pResourceJson, pRequiredPrivilege, pAllowSharedResource)
-			}
-		}
-		Catch ex {
-			if (ex.Data '[ "StopIteration") { // StopIteration
-				throw ex
-			}
+		set len = handlers."__len__"()
+		for i=0:1:len-1 {
+			set handler = handlers."__getitem__"(i)
+			do handler."__call__"(pResourceJson, pRequiredPrivilege, pAllowSharedResource)
 		}
 	} else {
 		do ##super(pResourceJson, pRequiredPrivilege, pAllowSharedResource)
@@ -236,19 +213,10 @@ Method VerifyHistoryInstanceResponse(
 			do ##super(pResourceType, pResourceJson, pRequiredPrivilege)
 			quit
 		}
-		set iterator = handlers."__iter__"()
-		set handler = ""
-		Try {
-			for {
-				set handler = iterator."__next__"()
-				quit:handler=""
-				do handler."__call__"(pResourceType, pResourceJson, pRequiredPrivilege)
-			}
-		}
-		Catch ex {
-			if (ex.Data '[ "StopIteration") { // StopIteration
-				throw ex
-			}
+		set len = handlers."__len__"()
+		for i=0:1:len-1 {
+			set handler = handlers."__getitem__"(i)
+			do handler."__call__"(pResourceType, pResourceJson, pRequiredPrivilege)
 		}
 	} else {
 		do ##super(pResourceType, pResourceJson, pRequiredPrivilege)
@@ -268,19 +236,10 @@ Method VerifyDeleteRequest(
 			#; do ##super(pResourceType, pResourceId, pRequiredPrivilege)
 			quit
 		}
-		set iterator = handlers."__iter__"()
-		set handler = ""
-		Try {
-			for {
-				set handler = iterator."__next__"()
-				quit:handler=""
-				do handler."__call__"(pResourceType, pResourceId, pRequiredPrivilege)
-			}
-		}
-		Catch ex {
-			if (ex.Data '[ "StopIteration") { // StopIteration
-				throw ex
-			}
+		set len = handlers."__len__"()
+		for i=0:1:len-1 {
+			set handler = handlers."__getitem__"(i)
+			do handler."__call__"(pResourceType, pResourceId, pRequiredPrivilege)
 		}
 	} else {
 		#; do ##super(pResourceType, pResourceId, pRequiredPrivilege)
@@ -303,19 +262,10 @@ Method VerifySearchRequest(
 			do ##super(pResourceType, pCompartmentResourceType, pCompartmentResourceId, pParameters, pRequiredPrivilege)
 			quit
 		}
-		set iterator = handlers."__iter__"()
-		set handler = ""
-		Try {
-			for {
-				set handler = iterator."__next__"()
-				quit:handler=""
-				do handler."__call__"(pResourceType, pCompartmentResourceType, pCompartmentResourceId, pParameters, pRequiredPrivilege)
-			}
-		}
-		Catch ex {
-			if (ex.Data '[ "StopIteration") { // StopIteration
-				throw ex
-			}
+		set len = handlers."__len__"()
+		for i=0:1:len-1 {
+			set handler = handlers."__getitem__"(i)
+			do handler."__call__"(pResourceType, pCompartmentResourceType, pCompartmentResourceId, pParameters, pRequiredPrivilege)
 		}
 	} else {
 		do ##super(pResourceType, pCompartmentResourceType, pCompartmentResourceId, pParameters, pRequiredPrivilege)
@@ -332,19 +282,10 @@ Method VerifySystemLevelRequest()
 			do ##super()
 			quit
 		}
-		set iterator = handlers."__iter__"()
-		set handler = ""
-		Try {
-			for {
-				set handler = iterator."__next__"()
-				quit:handler=""
-				do handler."__call__"()
-			}
-		}
-		Catch ex {
-			if (ex.Data '[ "StopIteration") { // StopIteration
-				throw ex
-			}
+		set len = handlers."__len__"()
+		for i=0:1:len-1 {
+			set handler = handlers."__getitem__"(i)
+			do handler."__call__"()
 		}
 	} else {
 		do ##super()

@@ -43,27 +43,25 @@ Method ValidateResource(
 		set jsonLib = ##class(%SYS.Python).Import("json")
 		set resourceJson = pResourceObject.%ToJSON()
 		set resourcePyObj = jsonLib.loads(resourceJson)
-
+		
 		set handlers = registry."get_validate_resource_handlers"(resourceType)
 
 		if handlers."__len__"() = 0 {
 			do ##super(pResourceObject, pIsInTransaction)
 			quit
 		}
-		set iterator = handlers."__iter__"()
-		set handler = ""
-		Try {
-			for {
-				set handler = iterator."__next__"()
-				quit:handler=""
+		set len = handlers."__len__"()
+		try {
+			for i=0:1:len-1 {
+				
+				set handler = handlers."__getitem__"(i)
 				do handler."__call__"(resourcePyObj, pIsInTransaction)
 			}
-		}
-		Catch ex {
-			if (ex.Data '[ "StopIteration") { // StopIteration
-				if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
-				throw ex
-			}
+		} catch ex {
+			
+			//zw ex,msg,msgArray
+			if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
+			throw ex
 		}
 	}
 }
@@ -101,20 +99,16 @@ Method ValidateObject(
 	if pyBuiltins.hasattr(registry, "get_validate_object_handlers") {
 		set handlers = registry."get_validate_object_handlers"(resourceType)
 		if handlers."__len__"() > 0 {
-			set iterator = handlers."__iter__"()
-			set handler = ""
-			Try {
-				for {
-					set handler = iterator."__next__"()
-					quit:handler=""
+			set len = handlers."__len__"()
+			try {
+				for i=0:1:len-1 {
+					zw "handlers"
+					set handler = handlers."__getitem__"(i)
 					do handler."__call__"(resourcePyObj, pPath, .stati, pIsInTransaction)
 				}
-			}
-			Catch ex {
-				if (ex.Data '[ "StopIteration") { // StopIteration
-					if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
-					throw ex
-				}
+			} catch ex {
+				if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
+				throw ex
 			}
 		}
 	}

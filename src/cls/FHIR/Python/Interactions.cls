@@ -14,8 +14,6 @@ Parameter BatchHandlerClass As %String = "FHIR.Python.BundleProcessor";
 Method %OnNew(pStrategy As HS.FHIRServer.Storage.JsonAdvSQL.InteractionsStrategy) As %Status
 {
 
-	#; write "In FHIR.Python.Interactions.%OnNew",!
-
 	// %OnNew is called when the object is created.
 	// Load the Python decorator registry
 	do ..GetCustomizationSettings(.tPythonPath, .tPythonModule)
@@ -54,9 +52,6 @@ Method OnBeforeRequest(
 	pFHIRRequest As HS.FHIRServer.API.Data.Request,
 	pTimeout As %Integer)
 {
-	if $system.Util.GetEnviron("FHIR_PYTHON_DEBUG")=1 {
-		write "In OnBeforeRequest",!
-	}
 	// OnBeforeRequest is called before each request is processed.
 	// Call all registered before_request handlers
 	if $ISOBJECT(..PythonClass) {
@@ -99,79 +94,60 @@ Method OnBeforeRequest(
 		}
 		
 		if handlers."__len__"() > 0 {
-			set iterator = handlers."__iter__"()
-			set handler = ""
-			Try {
-				for {
-					set handler = iterator."__next__"()
-					quit:handler=""
+			set iter = handlers."__iter__"()
+			set len = handlers."__len__"()
+			try {
+				for i=0:1:len-1 {
+					set handler = handlers."__getitem__"(i)
 					do handler."__call__"(pFHIRService, pFHIRRequest, body, pTimeout)
 				}
+			} catch ex {
+				if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
+				throw ex
 			}
-			Catch ex {
-				if (ex.Data '[ "StopIteration") { // StopIteration
-					if ex.%IsA("%Exception.PythonException") { do ..HandlePythonException(ex) }
-					throw ex
-				}
-			}
-		}
+		} 
 		
 		if (requestMethod = "POST") && (resourceType '= "") {
 			if createHandlers."__len__"() > 0 {
-				set iterator = createHandlers."__iter__"()
-				set handler = ""
-				Try {
-					for {
-						set handler = iterator."__next__"()
-						quit:handler=""
+				set len = createHandlers."__len__"()
+				try {
+					for i=0:1:len-1 {
+						set handler = createHandlers."__getitem__"(i)
 						do handler."__call__"(pFHIRService, pFHIRRequest, body, pTimeout)
 					}
-				}
-				Catch ex {
-					if (ex.Data '[ "StopIteration") { // StopIteration
-					if ex.%IsA("%Exception.PythonException") { do ..HandlePythonException(ex) }
-						throw ex
-					}
+				} catch ex {
+					if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
+					throw ex
 				}
 			}
 		}
 		
 		if (requestMethod = "PUT") && (resourceType '= "") {
 			if updateHandlers."__len__"() > 0 {
-				set iterator = updateHandlers."__iter__"()
-				set handler = ""
-				Try {
-					for {
-						set handler = iterator."__next__"()
-						quit:handler=""
+				set len = updateHandlers."__len__"()
+				try {
+					for i=0:1:len-1 {
+						set handler = updateHandlers."__getitem__"(i)
 						do handler."__call__"(pFHIRService, pFHIRRequest, body, pTimeout)
 					}
-				}
-				Catch ex {
-					if (ex.Data '[ "StopIteration") { // StopIteration
-					if ex.%IsA("%Exception.PythonException") { do ..HandlePythonException(ex) }
-						throw ex
-					}
+				} catch ex {
+					if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
+					throw ex
 				}
 			}
 		}
 		
 		if (requestMethod = "DELETE") && (resourceType '= "") {
 			if deleteHandlers."__len__"() > 0 {
-				set iterator = deleteHandlers."__iter__"()
-				set handler = ""
-				Try {
-					for {
-						set handler = iterator."__next__"()
-						quit:handler=""
+				set len = deleteHandlers."__len__"()
+				try {
+					for i=0:1:len-1 {
+						set handler = deleteHandlers."__getitem__"(i)
 						do handler."__call__"(pFHIRService, pFHIRRequest, body, pTimeout)
 					}
-				}
-				Catch ex {
-					if (ex.Data '[ "StopIteration") { // StopIteration
-					if ex.%IsA("%Exception.PythonException") { do ..HandlePythonException(ex) }
-						throw ex
-					}
+				} catch ex {
+					if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
+					throw ex
 				}
 			}
 		}
@@ -201,20 +177,15 @@ Method OnAfterRequest(
 		}
 		
 		if handlers."__len__"() > 0 {
-			set iterator = handlers."__iter__"()
-			set handler = ""
-			Try {
-				for {
-					set handler = iterator."__next__"()
-					quit:handler=""
+			set len = handlers."__len__"()
+			try {
+				for i=0:1:len-1 {
+					set handler = handlers."__getitem__"(i)
 					do handler."__call__"(pFHIRService, pFHIRRequest, pFHIRResponse, body)
 				}
-			}
-			Catch ex {
-				if (ex.Data '[ "StopIteration") { // StopIteration
-					if ex.%IsA("%Exception.PythonException") { do ..HandlePythonException(ex) }
-					throw ex
-				}
+			} catch ex {
+				if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
+				throw ex
 			}
 		}
 	} else {
@@ -240,24 +211,19 @@ Method PostProcessRead(pResourceObject As %DynamicObject) As %Boolean
 			return ##super(pResourceObject)
 		}
 		if handlers."__len__"() > 0 {
-			set iterator = handlers."__iter__"()
-			set handler = ""
-			Try {
-				for {
-					set handler = iterator."__next__"()
-					quit:handler=""
+			set len = handlers."__len__"()
+			try {
+				for i=0:1:len-1 {
+					set handler = handlers."__getitem__"(i)
 					set result = handler."__call__"(body)
 					// If any handler returns False, exclude the resource
 					if 'result {
 						return 0
 					}
 				}
-			}
-			Catch ex {
-				if (ex.Data '[ "StopIteration") { // StopIteration
-					if ex.%IsA("%Exception.PythonException") { do ..HandlePythonException(ex) }
-					throw ex
-				}
+			} catch ex {
+				if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
+				throw ex
 			}
 		}
 	} else {
@@ -280,21 +246,16 @@ Method PostProcessSearch(
 				quit $$$OK
 			}
 			if handlers."__len__"() > 0 {
-				set iterator = handlers."__iter__"()
-				set handler = ""
-			Try {
-				for {
-					set handler = iterator."__next__"()
-					quit:handler=""
-					do handler."__call__"(pRS, pResourceType)
-				}
-			}
-			Catch ex {
-				if (ex.Data '[ "StopIteration") { // StopIteration
-					if ex.%IsA("%Exception.PythonException") { do ..HandlePythonException(ex) }
+				set len = handlers."__len__"()
+				try {
+					for i=0:1:len-1 {
+						set handler = handlers."__getitem__"(i)
+						do handler."__call__"(pRS, pResourceType)
+					}
+				} catch ex {
+					if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
 					throw ex
 				}
-			}
 			}
 		} else {
 			do ##super(pRS, pResourceType)

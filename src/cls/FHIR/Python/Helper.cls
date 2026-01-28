@@ -51,6 +51,11 @@ ClassMethod TryImportModule(
 	set pModuleObj = ""
 	set importlib = ##class(%SYS.Python).Import("importlib")
 	Try {
+
+		/// Trace debugging
+		/// do $system.Python.Debugging(1)
+		/// End trace debugging
+
 		set pModuleObj = importlib."import_module"(pModule)
 		if pReload {
 			do importlib."reload"(pModuleObj)
