@@ -59,6 +59,20 @@ def deny_blocked_patient_read(resource):
     return True
 
 
+@fhir.post_process_search("Patient")
+def filter_blocked_patient_search(rs, resource_type):
+    """
+    Filter out blocked patients from search results.
+    """
+    # rs is a ResultIterator
+    rs._SetIterator(0)
+    while rs._Next():
+        resource_id = rs._Get("ResourceId")
+        if resource_id.startswith(BLOCKED_PREFIX):
+            rs.MarkAsDeleted()
+            rs._SaveRow()
+
+
 @fhir.on_create("Patient")
 def record_create(fhir_service, fhir_request, body, timeout):
     ctx = get_context()

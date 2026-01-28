@@ -152,3 +152,42 @@ def test_validate_bundle_requires_entries(fhir_base_url):
     assert response.status_code == 200, response.text
     body = response.json()
     assert body.get("resourceType") == "OperationOutcome"
+
+
+@pytest.mark.e2e
+def test_search_filtering_hides_blocked_patients(fhir_base_url):
+    # 1. Create a blocked patient
+    blocked_id = "blocked-search-1"
+    requests.put(
+        f"{fhir_base_url}/fhir/r4/Patient/{blocked_id}",
+        json={"resourceType": "Patient", "id": blocked_id, "active": True},
+        headers={"Content-Type": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+    )
+    
+    # 2. Create an allowed patient
+    allowed_id = "allowed-search-1"
+    requests.put(
+        f"{fhir_base_url}/fhir/r4/Patient/{allowed_id}",
+        json={"resourceType": "Patient", "id": allowed_id, "active": True},
+        headers={"Content-Type": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+    )
+    
+    # 3. Search for both
+    response = requests.get(
+        f"{fhir_base_url}/fhir/r4/Patient",
+        params={"_id": f"{blocked_id},{allowed_id}"},
+        headers={"Accept": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+    )
+    assert response.status_code == 200
+    bundle = response.json()
+    
+    # 4. Verify results
+    assert bundle["resourceType"] == "Bundle"
+    entries = bundle.get("entry", [])
+    ids = [e["resource"]["id"] for e in entries]
+    
+    assert allowed_id in ids, "Allowed patient should be in search results"
+    assert blocked_id not in ids, "Blocked patient should be filtered out from search results"
