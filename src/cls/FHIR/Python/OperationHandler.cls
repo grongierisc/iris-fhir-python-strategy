@@ -120,6 +120,7 @@ ClassMethod ProcessOperation(
                 }
                 throw ex
             }
+			Return $$$OK
 		}
 	}
 
@@ -128,9 +129,10 @@ ClassMethod ProcessOperation(
 		do ##super(pService, pRequest, pResponse)
 	}
 	Catch ex {
-		if ex.Name '= "<HSFHIRErr>OperationNotSupported" {
-			throw ex
-		}
+        #; if ex.Name '= "<HSFHIRErr>OperationNotSupported" {
+		#; 	throw ex
+		#; }
+        throw ex
 	}
 
 	Return $$$OK
