@@ -22,11 +22,8 @@ Method ValidateResource(
 		do ##class(FHIR.Python.Helper).GetCustomizationSettings(.customPath, .customModule)
 		
 		do ##class(FHIR.Python.Helper).SetPythonPath(customPath)
-		set sys = ##class(%SYS.Python).Import("sys")
-		do sys.path.insert(0, customPath)
 		
-		set importlib = ##class(%SYS.Python).Import("importlib")
-		do importlib."import_module"(customModule)
+		do ##class(FHIR.Python.Helper).TryImportModule(customModule, .module)
 		
 		set decoratorsModule = ##class(%SYS.Python).Import("fhir_decorators")
 		set registry = decoratorsModule.fhir
@@ -39,6 +36,7 @@ Method ValidateResource(
 		set resourcePyObj = jsonLib.loads(resourceJson)
 
 		set handlers = registry."get_validate_resource_handlers"(resourceType)
+
 		if handlers."__len__"() = 0 {
 			do ##super(pResourceObject, pIsInTransaction)
 			quit
@@ -54,6 +52,7 @@ Method ValidateResource(
 		}
 		Catch ex {
 			if (ex.Data '[ "StopIteration") { // StopIteration
+				if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
 				throw ex
 			}
 		}
@@ -86,11 +85,8 @@ Method ValidateObject(
 	do ##class(FHIR.Python.Helper).GetCustomizationSettings(.customPath, .customModule)
 	
 	do ##class(FHIR.Python.Helper).SetPythonPath(customPath)
-	set sys = ##class(%SYS.Python).Import("sys")
-	do sys.path.insert(0, customPath)
 	
-	set importlib = ##class(%SYS.Python).Import("importlib")
-	do importlib."import_module"(customModule)
+	do ##class(FHIR.Python.Helper).TryImportModule(customModule, .module)
 
 	set decoratorsModule = ##class(%SYS.Python).Import("fhir_decorators")
 	set registry = decoratorsModule.fhir
@@ -115,6 +111,7 @@ Method ValidateObject(
 			}
 			Catch ex {
 				if (ex.Data '[ "StopIteration") { // StopIteration
+					if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
 					throw ex
 				}
 			}

@@ -27,38 +27,50 @@ ClassMethod AddSupportedOperations(pMap As %DynamicObject)
         set operations = tPythonClass."get_operations"()
         
         // Iterate through all registered operations
-        set iterator = operations."%Items"()
-        while iterator."%Next"() {
-	        set item = iterator."%GetCurrent"()
-	        set key = item."%Get"(0)  // (name, scope, resource_type)
-	        set handler = item."%Get"(1)
-	        
-	        set name = key."%Get"(0)
-	        set scope = key."%Get"(1)
-	        set resourceType = key."%Get"(2)
-	        
-	        // Add to pMap based on scope
-	        if scope = "System" {
-		        if 'pMap."%IsDefined"("system") {
-			        do pMap."%Set"("system", [])
-		        }
-		        set systemOps = pMap."%Get"("system")
-		        do systemOps."%Push"({"name": (name), "definition": ("http://example.com/OperationDefinition/"_name)})
-	        }
-	        elseif (scope = "Type") || (scope = "Instance") {
-		        if 'pMap."%IsDefined"("resource") {
-			        do pMap."%Set"("resource", {})
-		        }
-		        set resourceOps = pMap."%Get"("resource")
-		        if (resourceType '= "*") && (resourceType '= "") {
-			        if 'resourceOps."%IsDefined"(resourceType) {
-				        do resourceOps."%Set"(resourceType, [])
+        set operationsList = operations.items()
+        set iterator = operationsList."__iter__"()
+        set item = ""
+        Try {
+        	for {
+	        	set item = iterator."__next__"()
+	        	quit:item=""
+	        	
+		        set key = item."__getitem__"(0)  // (name, scope, resource_type)
+		        set handler = item."__getitem__"(1)
+		        
+		        set name = key."__getitem__"(0)
+		        set name = ""_name
+		        set scope = key."__getitem__"(1)
+		        set resourceType = key."__getitem__"(2)
+		        
+		        // Add to pMap based on scope
+		        if scope = "System" {
+			        if 'pMap."%IsDefined"("system") {
+				        do pMap."%Set"("system", [])
 			        }
-			        set typeOps = resourceOps."%Get"(resourceType)
-			        do typeOps."%Push"({"name": (name), "definition": ("http://example.com/OperationDefinition/"_name)})
+			        set systemOps = pMap."%Get"("system")
+			        do systemOps."%Push"({"name": (name), "definition": ("http://example.com/OperationDefinition/"_name)})
 		        }
-	        }
+		        elseif (scope = "Type") || (scope = "Instance") {
+			        if 'pMap."%IsDefined"("resource") {
+				        do pMap."%Set"("resource", {})
+			        }
+			        set resourceOps = pMap."%Get"("resource")
+			        if (resourceType '= "*") && (resourceType '= "") {
+				        if 'resourceOps."%IsDefined"(resourceType) {
+					        do resourceOps."%Set"(resourceType, [])
+				        }
+				        set typeOps = resourceOps."%Get"(resourceType)
+				        do typeOps."%Push"({"name": (name), "definition": ("http://example.com/OperationDefinition/"_name)})
+			        }
+		        }
+        	}
         }
+		Catch ex {
+			if (ex.Data '[ "StopIteration") { // StopIteration
+				throw ex
+			}
+		}
     }
 }
 
@@ -92,6 +104,15 @@ ClassMethod ProcessOperation(
 		if $ISOBJECT(handler) {
 			// Call the decorated function
 			set pResponse = handler."__call__"(operationName, operationScope, body, pService, pRequest, pResponse)
+			
+			// Ensure Json property is %DynamicObject if it was set to a Python dict
+			set builtins = ##class(%SYS.Python).Import("builtins")
+			set val = pResponse.Json
+			if builtins.isinstance(val, builtins.dict) || builtins.isinstance(val, builtins.list) {
+				set json = ##class(%SYS.Python).Import("json")
+				set str = json.dumps(val)
+				set pResponse.Json = ##class(%Library.DynamicAbstractObject).%FromJSON(str)
+			}
 		}
 	}
 

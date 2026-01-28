@@ -11,8 +11,7 @@ ClassMethod ValidateBundle(
 	
 	do ##class(FHIR.Python.Helper).SetPythonPath(customPath)
 	
-	set importlib = ##class(%SYS.Python).Import("importlib")
-	do importlib."import_module"(customModule)
+	do ##class(FHIR.Python.Helper).TryImportModule(customModule, .module)
 	
 	set decoratorsModule = ##class(%SYS.Python).Import("fhir_decorators")
 	set registry = decoratorsModule.fhir
@@ -33,6 +32,7 @@ ClassMethod ValidateBundle(
 	}
 	Catch ex {
 		if (ex.Data '[ "StopIteration") { // StopIteration
+			if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
 			throw ex
 		}
 	}

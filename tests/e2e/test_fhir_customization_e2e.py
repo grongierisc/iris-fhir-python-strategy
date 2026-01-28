@@ -17,6 +17,33 @@ def test_capability_statement_account_removed(fhir_base_url):
     types = {resource["type"] for resource in resources}
     assert "Account" not in types
 
+@pytest.mark.e2e
+def test_capability_statement_includes_custom_operation(fhir_base_url):
+    metadata_url = f"{fhir_base_url}/fhir/r4/metadata"
+    response = requests.get(
+        metadata_url,
+        headers={"Accept": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+        timeout=10,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    
+    # Check if $echo is defined for Patient
+    resources = body["rest"][0]["resource"]
+    patient_resource = next((r for r in resources if r["type"] == "Patient"), None)
+    assert patient_resource is not None
+    
+    # Operation might be in 'operation' field of resource definition
+    # or just exposed via definition link.
+    # Standard FHIR capability statement format:
+    # resource: [ { type: Patient, operation: [ { name: "echo", definition: ... } ] } ]
+    
+    operations = patient_resource.get("operation", [])
+    op_names = {op["name"] for op in operations}
+    assert "echo" in op_names, f"Expected 'echo' in {op_names}"
+
+
 
 @pytest.mark.e2e
 def test_blocked_patient_read_returns_404(fhir_base_url):
@@ -47,3 +74,81 @@ def test_blocked_patient_read_returns_404(fhir_base_url):
     )
     assert read_response.status_code == 404, read_response.text
 
+
+@pytest.mark.e2e
+def test_allowed_patient_read_returns_200(fhir_base_url):
+    patient_id = "allowed-e2e-patient"
+    create_url = f"{fhir_base_url}/fhir/r4/Patient/{patient_id}"
+    patient = {
+        "resourceType": "Patient",
+        "id": patient_id,
+        "active": True,
+        "name": [{"family": "Allowed"}],
+    }
+
+    create_response = requests.put(
+        create_url,
+        headers={"Content-Type": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+        json=patient,
+        timeout=10,
+    )
+    assert create_response.status_code in (200, 201), create_response.text
+
+    read_url = f"{fhir_base_url}/fhir/r4/Patient/{patient_id}"
+    read_response = requests.get(
+        read_url,
+        headers={"Accept": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+        timeout=10,
+    )
+    assert read_response.status_code == 200, read_response.text
+
+
+@pytest.mark.e2e
+def test_custom_echo_operation(fhir_base_url):
+    patient_id = "echo-e2e-patient"
+    create_url = f"{fhir_base_url}/fhir/r4/Patient/{patient_id}"
+    patient = {
+        "resourceType": "Patient",
+        "id": patient_id,
+        "active": True,
+        "name": [{"family": "Echo"}],
+    }
+
+    create_response = requests.put(
+        create_url,
+        headers={"Content-Type": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+        json=patient,
+        timeout=10,
+    )
+    assert create_response.status_code in (200, 201), create_response.text
+
+    op_url = f"{fhir_base_url}/fhir/r4/Patient/$echo"
+    op_response = requests.post(
+        op_url,
+        headers={"Accept": "application/fhir+json", "Content-Type": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+        json={"resourceType": "Parameters"},
+        timeout=10,
+    )
+    assert op_response.status_code == 200, op_response.text
+    body = op_response.json()
+    assert body.get("resourceType") == "Parameters"
+
+
+@pytest.mark.e2e
+def test_validate_bundle_requires_entries(fhir_base_url):
+    bundle = {"resourceType": "Bundle", "type": "transaction", "entry": []}
+    op_url = f"{fhir_base_url}/fhir/r4/Bundle/$validate"
+    response = requests.post(
+        op_url,
+        headers={"Content-Type": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+        json=bundle,
+        timeout=10,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body.get("resourceType") == "OperationOutcome"

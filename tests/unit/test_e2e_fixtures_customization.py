@@ -40,5 +40,6 @@ def test_capture_user_context(fake_fhir_request):
 
 
 @pytest.mark.unit
-def test_allow_patient_read():
-    assert fc.allow_patient_read({"resourceType": "Patient"}) is True
+def test_deny_blocked_patient_read():
+    assert fc.deny_blocked_patient_read({"resourceType": "Patient", "id": "blocked-1"}) is False
+    assert fc.deny_blocked_patient_read({"resourceType": "Patient", "id": "ok-1"}) is True

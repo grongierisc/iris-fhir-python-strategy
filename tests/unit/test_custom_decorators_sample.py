@@ -56,6 +56,27 @@ def test_read_handler_denies_guest(fake_fhir_request):
 
 
 @pytest.mark.unit
+def test_search_handler_registered():
+    handlers = cd.fhir.get_post_process_search_handlers("Patient")
+    assert handlers
+    assert handlers[0](None, "Patient") is True
+
+
+@pytest.mark.unit
+def test_update_handler_requires_name():
+    handlers = cd.fhir.get_update_handlers("Patient")
+    assert handlers
+
+    with pytest.raises(ValueError, match="Missing body"):
+        handlers[0](Mock(), Mock(), None, None)
+
+    with pytest.raises(ValueError, match="Missing name"):
+        handlers[0](Mock(), Mock(), {"resourceType": "Patient"}, None)
+
+    handlers[0](Mock(), Mock(), {"resourceType": "Patient", "name": [{"family": "Doe"}]}, None)
+
+
+@pytest.mark.unit
 def test_operation_handler_sets_payload():
     handler = cd.fhir.get_operation_handler("echo", "Instance", "Patient")
     response = Mock()

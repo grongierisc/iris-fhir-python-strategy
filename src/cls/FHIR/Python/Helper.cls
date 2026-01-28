@@ -1,3 +1,5 @@
+Include (HS.FHIRServer, HS.HC.InstanceConfig, HS.HC)
+
 Class FHIR.Python.Helper Extends %RegisteredObject
 {
 
@@ -80,6 +82,62 @@ ClassMethod DeleteFHIRData(pFHIRData As %String)
     set strategy = ##class(HS.FHIRServer.API.InteractionsStrategy).GetStrategyForEndpoint(pFHIRData)
     set options("deleteDataOnly") = 1
     do strategy.Delete(.options)
+}
+
+ClassMethod HandlePythonException(pEx As %Exception.PythonException)
+{
+    // Default to 500 if not recognized
+    Set tHTTPCode = 500
+    Set tCode = "exception"
+    Set tSeverity = "error"
+    Set tDetailsText = pEx.DisplayString()
+    Set msg = tDetailsText
+    
+    // Attempt to inspect Python exception type
+    // pEx.ExceptionObject is the Python exception instance
+    if $IsObject(pEx.ExceptionObject) {
+        Try {
+            set builtins = ##class(%SYS.Python).Import("builtins")
+            set typeObj = builtins.type(pEx.ExceptionObject)
+            set typeStr = ""_typeObj."__name__"
+            
+            set msg = ""_builtins.str(pEx.ExceptionObject)
+            
+            // If the object is the class itself (type="type"), retrieve name from object and msg from Data
+            if (typeStr = "type") {
+                 set typeStr = ""_pEx.ExceptionObject."__name__"
+                 // Data format: <class 'module.ValueError'>: Message or <class 'ValueError'>: Message
+                 // We extract the message after the first ": "
+                 set startMsg = $Find(pEx.Data, ": ")
+                 if (startMsg > 0) {
+                     set msg = $Extract(pEx.Data, startMsg, *)
+                 }
+            }
+            
+            if (typeStr = "ValueError") {
+                set tHTTPCode = 400
+                set tCode = "invalid"
+                set tDetailsText = msg
+            }
+            elseif (typeStr = "PermissionError") {
+                set tHTTPCode = 403
+                set tCode = "forbidden"
+                set tDetailsText = msg
+            }
+            elseif (typeStr = "FileNotFoundError") {
+                set tHTTPCode = 404
+                set tCode = "not-found"
+                set tDetailsText = msg
+            }
+        } Catch exInternal {
+            // Logic failed, stick to defaults
+             Set msg = "Internal Error: " _ exInternal.DisplayString()
+        }
+    }
+    
+	#dim oneError As %Status = $$$ERROR($$$GeneralError, msg, $$$OutcomeWithPath(tHTTPCode, "error", tCode, ""))
+	
+	$$$ThrowOnError(oneError)
 }
 
 }

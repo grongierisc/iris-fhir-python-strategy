@@ -24,7 +24,7 @@ def _run_restart_script(container):
         ["/bin/sh", "-c", "iris session iris < /irisdev/app/iris.script.restart.fhir"],
         stdout=True,
         stderr=True,
-        user="root",
+        user="irisowner",
     )
     if result.exit_code != 0:
         raise RuntimeError(result.output.decode("utf-8", errors="replace"))

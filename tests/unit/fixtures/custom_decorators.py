@@ -28,6 +28,19 @@ def allow_patient_read(resource):
     return "doctor" in context.roles
 
 
+@fhir.on_search("Patient")
+def allow_patient_search(rs, resource_type):
+    return True
+
+
+@fhir.on_update("Patient")
+def validate_patient_update(fhir_service, fhir_request, body, timeout):
+    if body is None:
+        raise ValueError("Missing body")
+    if not body.get("name"):
+        raise ValueError("Missing name")
+
+
 @fhir.operation("echo", scope="Instance", resource_type="Patient")
 def echo_operation(operation_name, operation_scope, body,
                    fhir_service, fhir_request, fhir_response):

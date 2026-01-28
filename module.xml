@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="IRIS" version="26">
+  <Document name="iris-fhir-python-strategy.ZPM">
+    <Module>
+      <Name>iris-fhir-python-strategy</Name>
+      <Version>1.0.0</Version>
+      <Description>A strategy strategy for InterSystems IRIS FHIR Server allowing customization via Python decorators.</Description>
+      <Keywords>fhir, python, customization, strategy</Keywords>
+      <Author>
+        <Name>Guillaume Rongier</Name>
+      </Author>
+      <Packaging>module</Packaging>
+      <SourcesRoot>src</SourcesRoot>
+      <Resource Name="FHIR.Python.PKG"/>
+      <Resource Name="python"/>
+      <Dependencies>
+        <!-- Add dependencies here if any -->
+      </Dependencies>
+    </Module>
+  </Document>
+</Export>

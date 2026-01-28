@@ -7,7 +7,7 @@ Class FHIR.Python.Interactions Extends (HS.FHIRServer.Storage.JsonAdvSQL.Interac
 
 Parameter ResourceValidatorClass = "FHIR.Python.ResourceValidator";
 
-// Parameter OperationHandlerClass As %String = "FHIR.Python.OperationHandler";
+Parameter OperationHandlerClass As %String = "FHIR.Python.OperationHandler";
 
 Parameter BatchHandlerClass As %String = "FHIR.Python.BundleProcessor";
 
@@ -110,6 +110,7 @@ Method OnBeforeRequest(
 			}
 			Catch ex {
 				if (ex.Data '[ "StopIteration") { // StopIteration
+					if ex.%IsA("%Exception.PythonException") { do ..HandlePythonException(ex) }
 					throw ex
 				}
 			}
@@ -128,6 +129,7 @@ Method OnBeforeRequest(
 				}
 				Catch ex {
 					if (ex.Data '[ "StopIteration") { // StopIteration
+					if ex.%IsA("%Exception.PythonException") { do ..HandlePythonException(ex) }
 						throw ex
 					}
 				}
@@ -147,6 +149,7 @@ Method OnBeforeRequest(
 				}
 				Catch ex {
 					if (ex.Data '[ "StopIteration") { // StopIteration
+					if ex.%IsA("%Exception.PythonException") { do ..HandlePythonException(ex) }
 						throw ex
 					}
 				}
@@ -166,6 +169,7 @@ Method OnBeforeRequest(
 				}
 				Catch ex {
 					if (ex.Data '[ "StopIteration") { // StopIteration
+					if ex.%IsA("%Exception.PythonException") { do ..HandlePythonException(ex) }
 						throw ex
 					}
 				}
@@ -208,6 +212,7 @@ Method OnAfterRequest(
 			}
 			Catch ex {
 				if (ex.Data '[ "StopIteration") { // StopIteration
+					if ex.%IsA("%Exception.PythonException") { do ..HandlePythonException(ex) }
 					throw ex
 				}
 			}
@@ -250,6 +255,7 @@ Method PostProcessRead(pResourceObject As %DynamicObject) As %Boolean
 			}
 			Catch ex {
 				if (ex.Data '[ "StopIteration") { // StopIteration
+					if ex.%IsA("%Exception.PythonException") { do ..HandlePythonException(ex) }
 					throw ex
 				}
 			}
@@ -285,6 +291,7 @@ Method PostProcessSearch(
 			}
 			Catch ex {
 				if (ex.Data '[ "StopIteration") { // StopIteration
+					if ex.%IsA("%Exception.PythonException") { do ..HandlePythonException(ex) }
 					throw ex
 				}
 			}
