@@ -14,6 +14,7 @@ Property PythonClassname As %String;
 ClassMethod SetPythonPath(pClasspaths)
 {
     set sys = ##class(%SYS.Python).Import("sys")
+    if (sys.path."__len__"() > 0) && (sys.path."__getitem__"(0) = pClasspaths) { Quit }
 
     for i=0:1:(sys.path."__len__"()-1) {
         Try {
@@ -45,7 +46,7 @@ ClassMethod GetPythonInstance(
 ClassMethod TryImportModule(
 	pModule As %String,
 	Output pModuleObj As %SYS.Python,
-	pReload As %Boolean = 1) As %Boolean
+	pReload As %Boolean = 0) As %Boolean
 {
 	set pModuleObj = ""
 	set importlib = ##class(%SYS.Python).Import("importlib")

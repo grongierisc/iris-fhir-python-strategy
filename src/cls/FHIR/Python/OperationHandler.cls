@@ -102,17 +102,24 @@ ClassMethod ProcessOperation(
 		set handler = tPythonClass."get_operation_handler"(operationName, operationScope, resourceType)
 		
 		if $ISOBJECT(handler) {
-			// Call the decorated function
-			set pResponse = handler."__call__"(operationName, operationScope, body, pService, pRequest, pResponse)
-			
-			// Ensure Json property is %DynamicObject if it was set to a Python dict
-			set builtins = ##class(%SYS.Python).Import("builtins")
-			set val = pResponse.Json
-			if builtins.isinstance(val, builtins.dict) || builtins.isinstance(val, builtins.list) {
-				set json = ##class(%SYS.Python).Import("json")
-				set str = json.dumps(val)
-				set pResponse.Json = ##class(%Library.DynamicAbstractObject).%FromJSON(str)
-			}
+		    Try {
+                // Call the decorated function
+                set pResponse = handler."__call__"(operationName, operationScope, body, pService, pRequest, pResponse)
+                
+                // Ensure Json property is %DynamicObject if it was set to a Python dict
+                set builtins = ##class(%SYS.Python).Import("builtins")
+                set val = pResponse.Json
+                if builtins.isinstance(val, builtins.dict) || builtins.isinstance(val, builtins.list) {
+                    set json = ##class(%SYS.Python).Import("json")
+                    set str = json.dumps(val)
+                    set pResponse.Json = ##class(%Library.DynamicAbstractObject).%FromJSON(str)
+                }
+            } Catch ex {
+                if ex.%IsA("%Exception.PythonException") {
+                    do ##class(FHIR.Python.Helper).HandlePythonException(ex)
+                }
+                throw ex
+            }
 		}
 	}
 
