@@ -94,6 +94,7 @@ ClassMethod ProcessOperation(
 		set handler = tPythonClass."get_operation_handler"(operationName, operationScope, resourceType)
 		
 		if $ISOBJECT(handler) {
+			set sc = $$BeginCapture^%SYS.Capture(.msg)
 		    Try {
                 // Call the decorated function
                 set pResponse = handler."__call__"(operationName, operationScope, body, pService, pRequest, pResponse)
@@ -107,11 +108,12 @@ ClassMethod ProcessOperation(
                     set pResponse.Json = ##class(%Library.DynamicAbstractObject).%FromJSON(str)
                 }
             } Catch ex {
-                if ex.%IsA("%Exception.PythonException") {
-                    do ##class(FHIR.Python.Helper).HandlePythonException(ex)
-                }
+				set sc = $$EndCapture^%SYS.Capture(msg,.msgArray)
+				set ex = ##class(FHIR.Python.Helper).RecoverPythonException(ex)
+                do ##class(FHIR.Python.Helper).HandlePythonException(ex)
                 throw ex
             }
+			set sc = $$EndCapture^%SYS.Capture(msg,.msgArray)
 			Return $$$OK
 		}
 	}

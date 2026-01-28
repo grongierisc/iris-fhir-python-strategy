@@ -93,63 +93,18 @@ Method OnBeforeRequest(
 			set body = jsonLib.loads(pFHIRRequest.Json.%ToJSON())
 		}
 		
-		if handlers."__len__"() > 0 {
-			set iter = handlers."__iter__"()
-			set len = handlers."__len__"()
-			try {
-				for i=0:1:len-1 {
-					set handler = handlers."__getitem__"(i)
-					do handler."__call__"(pFHIRService, pFHIRRequest, body, pTimeout)
-				}
-			} catch ex {
-				if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
-				throw ex
-			}
-		} 
+		do ..RunHandlers(handlers, pFHIRService, pFHIRRequest, body, pTimeout)
 		
 		if (requestMethod = "POST") && (resourceType '= "") {
-			if createHandlers."__len__"() > 0 {
-				set len = createHandlers."__len__"()
-				try {
-					for i=0:1:len-1 {
-						set handler = createHandlers."__getitem__"(i)
-						do handler."__call__"(pFHIRService, pFHIRRequest, body, pTimeout)
-					}
-				} catch ex {
-					if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
-					throw ex
-				}
-			}
+			do ..RunHandlers(createHandlers, pFHIRService, pFHIRRequest, body, pTimeout)
 		}
 		
 		if (requestMethod = "PUT") && (resourceType '= "") {
-			if updateHandlers."__len__"() > 0 {
-				set len = updateHandlers."__len__"()
-				try {
-					for i=0:1:len-1 {
-						set handler = updateHandlers."__getitem__"(i)
-						do handler."__call__"(pFHIRService, pFHIRRequest, body, pTimeout)
-					}
-				} catch ex {
-					if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
-					throw ex
-				}
-			}
+			do ..RunHandlers(updateHandlers, pFHIRService, pFHIRRequest, body, pTimeout)
 		}
 		
 		if (requestMethod = "DELETE") && (resourceType '= "") {
-			if deleteHandlers."__len__"() > 0 {
-				set len = deleteHandlers."__len__"()
-				try {
-					for i=0:1:len-1 {
-						set handler = deleteHandlers."__getitem__"(i)
-						do handler."__call__"(pFHIRService, pFHIRRequest, body, pTimeout)
-					}
-				} catch ex {
-					if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
-					throw ex
-				}
-			}
+			do ..RunHandlers(deleteHandlers, pFHIRService, pFHIRRequest, body, pTimeout)
 		}
 	} else {
 		do ##super(pFHIRService, pFHIRRequest, pTimeout)
@@ -176,18 +131,8 @@ Method OnAfterRequest(
 			set body = jsonLib.loads(pFHIRResponse.Json.%ToJSON())
 		}
 		
-		if handlers."__len__"() > 0 {
-			set len = handlers."__len__"()
-			try {
-				for i=0:1:len-1 {
-					set handler = handlers."__getitem__"(i)
-					do handler."__call__"(pFHIRService, pFHIRRequest, pFHIRResponse, body)
-				}
-			} catch ex {
-				if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
-				throw ex
-			}
-		}
+		do ..RunHandlers(handlers, pFHIRService, pFHIRRequest, pFHIRResponse, body)
+
 	} else {
 		do ##super(pFHIRService, pFHIRRequest, pFHIRResponse)
 	}
@@ -210,21 +155,8 @@ Method PostProcessRead(pResourceObject As %DynamicObject) As %Boolean
 		if handlers."__len__"() = 0 {
 			return ##super(pResourceObject)
 		}
-		if handlers."__len__"() > 0 {
-			set len = handlers."__len__"()
-			try {
-				for i=0:1:len-1 {
-					set handler = handlers."__getitem__"(i)
-					set result = handler."__call__"(body)
-					// If any handler returns False, exclude the resource
-					if 'result {
-						return 0
-					}
-				}
-			} catch ex {
-				if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
-				throw ex
-			}
+		if '..RunBooleanHandlers(handlers, body) {
+			return 0
 		}
 	} else {
 		return ##super(pResourceObject)
@@ -245,18 +177,8 @@ Method PostProcessSearch(
 				do ##super(pRS, pResourceType)
 				quit $$$OK
 			}
-			if handlers."__len__"() > 0 {
-				set len = handlers."__len__"()
-				try {
-					for i=0:1:len-1 {
-						set handler = handlers."__getitem__"(i)
-						do handler."__call__"(pRS, pResourceType)
-					}
-				} catch ex {
-					if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
-					throw ex
-				}
-			}
+			do ..RunHandlers(handlers, pRS, pResourceType)
+			do ##super(pRS, pResourceType)
 		} else {
 			do ##super(pRS, pResourceType)
 			quit $$$OK

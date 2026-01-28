@@ -1,4 +1,4 @@
-Class FHIR.Python.BundleValidator Extends HS.FHIRServer.Util.BundleValidator
+Class FHIR.Python.BundleValidator Extends (HS.FHIRServer.Util.BundleValidator, FHIR.Python.Helper)
 {
 
 ClassMethod ValidateBundle(
@@ -7,11 +7,11 @@ ClassMethod ValidateBundle(
 {
 	
 	// Call decorator handlers for additional bundle validation
-	do ##class(FHIR.Python.Helper).GetCustomizationSettings(.customPath, .customModule)
+	do ..GetCustomizationSettings(.customPath, .customModule)
 	
-	do ##class(FHIR.Python.Helper).SetPythonPath(customPath)
+	do ..SetPythonPath(customPath)
 	
-	do ##class(FHIR.Python.Helper).TryImportModule(customModule, .module)
+	do ..TryImportModule(customModule, .module)
 	
 	set decoratorsModule = ##class(%SYS.Python).Import("fhir_decorators")
 	set registry = decoratorsModule.fhir
@@ -21,16 +21,7 @@ ClassMethod ValidateBundle(
 		do ##super(pResourceObject, pFHIRVersion)
 		quit
 	}
-	set len = handlers."__len__"()
-	try {
-	    for i=0:1:len-1 {
-	        set handler = handlers."__getitem__"(i)
-	        do handler."__call__"(pResourceObject, pFHIRVersion)
-	    }
-	} catch ex {
-		if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
-		throw ex
-	}
+	do ..RunHandlers(handlers, pResourceObject, pFHIRVersion)
 }
 
 }

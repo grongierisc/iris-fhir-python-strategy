@@ -11,21 +11,15 @@ Property PythonPath As %String;
 
 Property PythonClassname As %String;
 
+Parameter TRACEBACKS = 1;
+
 ClassMethod SetPythonPath(pClasspaths)
 {
     set sys = ##class(%SYS.Python).Import("sys")
     if (sys.path."__len__"() > 0) && (sys.path."__getitem__"(0) = pClasspaths) { Quit }
 
-    for i=0:1:(sys.path."__len__"()-1) {
-        Try {
-            if sys.path."__getitem__"(i) = pClasspaths {
-                do sys.path."__delitem__"(i)
-            }
-        }
-        Catch ex {
-            // do nothing
-        }
-
+    while (sys.path."__contains__"(pClasspaths)) {
+        do sys.path.remove(pClasspaths)
     }
     do sys.path.insert(0, pClasspaths)
 }
@@ -53,7 +47,9 @@ ClassMethod TryImportModule(
 	Try {
 
 		/// Trace debugging
-		/// do $system.Python.Debugging(1)
+		/// Uncomment to display python tracebacks rest calls
+		/// Warning every HTTP code will be 200 OK
+		do $system.Python.Debugging(..#TRACEBACKS)
 		/// End trace debugging
 
 		set pModuleObj = importlib."import_module"(pModule)
@@ -88,6 +84,107 @@ ClassMethod DeleteFHIRData(pFHIRData As %String)
     set strategy = ##class(HS.FHIRServer.API.InteractionsStrategy).GetStrategyForEndpoint(pFHIRData)
     set options("deleteDataOnly") = 1
     do strategy.Delete(.options)
+}
+
+ClassMethod GetPythonTraceback() As %String
+{
+    set tbString = ""
+    try {
+        set sys = ##class(%SYS.Python).Import("sys")
+        set tracebackModule = ##class(%SYS.Python).Import("traceback")
+        
+        set traceback = sys."last_traceback"
+        if $isObject(traceback) {
+             set tb = tracebackModule."format_exception"(sys."last_type", sys."last_value", traceback)
+             for i=0:1:(tb."__len__"()-1) {
+                set tbString = tbString _ tb."__getitem__"(i)
+             }
+        }
+    } catch {
+        // ignore errors getting traceback
+    }
+    quit tbString
+}
+
+ClassMethod RecoverPythonException(pEx As %Exception.AbstractException) As %Exception.PythonException
+{
+    set newEx = pEx
+    if ..#TRACEBACKS {
+        try {
+            set sys = ##class(%SYS.Python).Import("sys")
+            set pyEx = sys."last_value"
+            set tbString = ..GetPythonTraceback()
+            
+            if (tbString '= "") {
+                 set newEx = ##class(%Exception.PythonException).%New(sys."last_value", "", "", "", $$$NULLOREF, tbString, pyEx)
+            }
+        } catch {
+            // ignore
+        }
+    }
+    // Ensure it's a PythonException
+    if 'newEx.%IsA("%Exception.PythonException") {
+         set newEx = ##class(%Exception.PythonException).%New(pEx.DisplayString())
+    }
+    return newEx
+}
+
+ClassMethod RunHandlers(
+	handlers As %SYS.Python,
+	args...)
+{
+    if handlers."__len__"() = 0 Quit 
+    set len = handlers."__len__"()
+    set sc = $$BeginCapture^%SYS.Capture(.msg)
+    try {
+        for i=0:1:len-1 {
+            set handler = handlers."__getitem__"(i)
+            if $Get(args) = 0 do handler."__call__"()
+            if $Get(args) = 1 do handler."__call__"(args(1))
+            if $Get(args) = 2 do handler."__call__"(args(1), args(2))
+            if $Get(args) = 3 do handler."__call__"(args(1), args(2), args(3))
+            if $Get(args) = 4 do handler."__call__"(args(1), args(2), args(3), args(4))
+            if $Get(args) = 5 do handler."__call__"(args(1), args(2), args(3), args(4), args(5))
+        }
+    } catch ex {
+        set sc = $$EndCapture^%SYS.Capture(msg,.msgArray)
+        set ex = ##class(FHIR.Python.Helper).RecoverPythonException(ex)
+        do ##class(FHIR.Python.Helper).HandlePythonException(ex)
+        throw ex
+    }
+    set sc = $$EndCapture^%SYS.Capture(msg,.msgArray)
+}
+
+ClassMethod RunBooleanHandlers(
+	handlers As %SYS.Python,
+	args...) As %Boolean
+{
+    if handlers."__len__"() = 0 Quit 1
+    set len = handlers."__len__"()
+    set sc = $$BeginCapture^%SYS.Capture(.msg)
+    try {
+        for i=0:1:len-1 {
+            set handler = handlers."__getitem__"(i)
+            if $Get(args) = 0 set result = handler."__call__"()
+            if $Get(args) = 1 set result = handler."__call__"(args(1))
+            if $Get(args) = 2 set result = handler."__call__"(args(1), args(2))
+            if $Get(args) = 3 set result = handler."__call__"(args(1), args(2), args(3))
+            if $Get(args) = 4 set result = handler."__call__"(args(1), args(2), args(3), args(4))
+            if $Get(args) = 5 set result = handler."__call__"(args(1), args(2), args(3), args(4), args(5))
+            
+            if 'result {
+                 set sc = $$EndCapture^%SYS.Capture(msg,.msgArray)
+                 return 0
+            }
+        }
+    } catch ex {
+        set sc = $$EndCapture^%SYS.Capture(msg,.msgArray)
+        set ex = ##class(FHIR.Python.Helper).RecoverPythonException(ex)
+        do ##class(FHIR.Python.Helper).HandlePythonException(ex)
+        throw ex
+    }
+    set sc = $$EndCapture^%SYS.Capture(msg,.msgArray)
+    return 1
 }
 
 ClassMethod HandlePythonException(pEx As %Exception.PythonException)
@@ -141,7 +238,17 @@ ClassMethod HandlePythonException(pEx As %Exception.PythonException)
         }
     }
     
-	#dim oneError As %Status = $$$ERROR($$$GeneralError, msg, $$$OutcomeWithPath(tHTTPCode, "error", tCode, ""))
+    // Append Traceback if enabled
+    if ..#TRACEBACKS {
+        set tb = ..GetPythonTraceback()
+    }
+	if ..#TRACEBACKS {
+	    	set oneError = $$$ERROR($$$PythonGeneralError, msg, $$$OutcomeWithPath(tHTTPCode, "error", tCode, tb))
+
+	}
+	else {
+		set oneError = $$$ERROR($$$GeneralError, msg, $$$OutcomeWithPath(tHTTPCode, "error", tCode, ""))
+	}
 	
 	$$$ThrowOnError(oneError)
 }

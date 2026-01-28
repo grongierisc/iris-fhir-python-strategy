@@ -1,4 +1,4 @@
-Class FHIR.Python.ResourceValidator Extends HS.FHIRServer.Util.ResourceValidator
+Class FHIR.Python.ResourceValidator Extends (HS.FHIRServer.Util.ResourceValidator, FHIR.Python.Helper)
 {
 
 Property Registry As %SYS.Python;
@@ -7,11 +7,11 @@ Method GetRegistry() As %SYS.Python
 {
     if '$IsObject(..Registry) {
         // Call decorator handlers for additional validation
-        do ##class(FHIR.Python.Helper).GetCustomizationSettings(.customPath, .customModule)
+        do ..GetCustomizationSettings(.customPath, .customModule)
         
-        do ##class(FHIR.Python.Helper).SetPythonPath(customPath)
+        do ..SetPythonPath(customPath)
         
-        do ##class(FHIR.Python.Helper).TryImportModule(customModule, .module)
+        do ..TryImportModule(customModule, .module)
         
         set decoratorsModule = ##class(%SYS.Python).Import("fhir_decorators")
         set ..Registry = decoratorsModule.fhir
@@ -43,26 +43,15 @@ Method ValidateResource(
 		set jsonLib = ##class(%SYS.Python).Import("json")
 		set resourceJson = pResourceObject.%ToJSON()
 		set resourcePyObj = jsonLib.loads(resourceJson)
-		
+
 		set handlers = registry."get_validate_resource_handlers"(resourceType)
 
 		if handlers."__len__"() = 0 {
 			do ##super(pResourceObject, pIsInTransaction)
 			quit
 		}
-		set len = handlers."__len__"()
-		try {
-			for i=0:1:len-1 {
-				
-				set handler = handlers."__getitem__"(i)
-				do handler."__call__"(resourcePyObj, pIsInTransaction)
-			}
-		} catch ex {
-			
-			//zw ex,msg,msgArray
-			if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
-			throw ex
-		}
+		
+		do ..RunHandlers(handlers, resourcePyObj, pIsInTransaction)
 	}
 }
 
@@ -100,16 +89,19 @@ Method ValidateObject(
 		set handlers = registry."get_validate_object_handlers"(resourceType)
 		if handlers."__len__"() > 0 {
 			set len = handlers."__len__"()
+			set sc = $$BeginCapture^%SYS.Capture(.msg)
 			try {
 				for i=0:1:len-1 {
-					zw "handlers"
 					set handler = handlers."__getitem__"(i)
 					do handler."__call__"(resourcePyObj, pPath, .stati, pIsInTransaction)
 				}
 			} catch ex {
-				if ex.%IsA("%Exception.PythonException") { do ##class(FHIR.Python.Helper).HandlePythonException(ex) }
+				set sc = $$EndCapture^%SYS.Capture(msg,.msgArray)
+				set ex = ..RecoverPythonException(ex)
+				do ..HandlePythonException(ex)
 				throw ex
 			}
+			set sc = $$EndCapture^%SYS.Capture(msg,.msgArray)
 		}
 	}
 	Quit stati
