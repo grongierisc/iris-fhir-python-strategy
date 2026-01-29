@@ -1,0 +1,13 @@
+
+    zn "FHIRSERVER"
+
+    do $system.OBJ.Load("/irisdev/app/src/cls/FHIR/Python/Interactions.cls", "ck")
+    do $system.OBJ.Load("/irisdev/app/src/cls/FHIR/Python/ResourceValidator.cls", "ck")
+    do $system.OBJ.Load("/irisdev/app/src/cls/FHIR/Python/BundleValidator.cls", "ck")
+    do $system.OBJ.Load("/irisdev/app/src/cls/FHIR/Python/Helper.cls", "ck")
+
+    zn "%SYS"
+
+    do KillAllCSPJobs^%SYS.cspServer2()
+
+    halt 

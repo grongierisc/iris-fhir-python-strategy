@@ -9,16 +9,8 @@
       "active": true,
       "username": "SuperUser",
       "password": "SYS",
-      "docker-compose": {
-        "service": "iris",
-        "internalPort": 52773
-      },
-      "links": {
-        "FHIR server test": "http://localhost:${port}/fhir/r4/metadata",
-        "FHIR SQL Builder": "http://localhost:8083/csp/fhirsql/index.csp",
-        "SQL": "http://localhost:8083/csp/sys/exp/%25CSP.UI.Portal.SQL.Home.zen?$NAMESPACE=FHIRSERVER",
-        "SAM": "http://localhost:8088/api/sam/app/index.csp"
-      }
+      "host": "localhost",
+      "port": 8082
     },
     "sqltools.connections": [
       {
@@ -34,6 +26,17 @@
         "showSystem": false,
         "username": "_SYSTEM"
       }
+    ],
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
+    "python-envs.pythonProjects": [],
+    "python.testing.pytestArgs": [
+      "./tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    // Update python sys path to include the FHIR server utilities
+    "python.analysis.extraPaths": [
+      "./src/python"
     ]
 
 }

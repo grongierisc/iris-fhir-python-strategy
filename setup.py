@@ -2,10 +2,11 @@
 # https://github.com/grongierisc/iris_pex_embedded_python/blob/main/LICENSE
 
 import os
+from typing import List
 
 from setuptools import setup
 
-def package_files(directory):
+def package_files(directory: str) -> List[str]:
     paths = []
     for (path, directories, filenames) in os.walk(directory):
         for filename in filenames:

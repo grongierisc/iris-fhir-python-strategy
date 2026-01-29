@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "unit: unit tests",
+  "e2e: end-to-end tests against a running IRIS container",
+]

@@ -1,4 +1,4 @@
-Class FHIR.Python.RepoManager Extends HS.FHIRServer.Storage.Json.RepoManager
+Class FHIR.Python.RepoManager Extends HS.FHIRServer.Storage.JsonAdvSQL.RepoManager
 {
 
 Parameter StrategyClass = "FHIR.Python.InteractionsStrategy";

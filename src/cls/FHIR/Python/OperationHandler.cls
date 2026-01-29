@@ -1,53 +1,68 @@
-Class cls.FHIR.Python.OperationHandler Extends (HS.FHIRServer.Storage.BuiltInOperations, FHIR.Python.Helper)
+Class FHIR.Python.OperationHandler Extends (HS.FHIRServer.Storage.JsonAdvSQL.BuiltInOperations, FHIR.Python.Helper)
 {
 
 ClassMethod HelperGetPython() As %Status
 {
-	// %OnNew is called when the object is created.
-	// The pStrategy parameter is the strategy object that created this object.
-	// The default implementation does nothing
-	// Frist set the python path from an env var
-	set tPythonPath = $system.Util.GetEnviron("OPERATION_PATH")
-	// Then set the python class name from the env var
-	set tPythonClassname = $system.Util.GetEnviron("OPERATION_CLASS")
-	// Then set the python module name from the env var
-	set tPythonModule = $system.Util.GetEnviron("OPERATION_MODULE")
+	// Load the Python decorator registry
+	do ..GetCustomizationSettings(.tPythonPath, .tPythonModule)
 
-	if (tPythonPath = "") || (tPythonClassname = "") || (tPythonModule = "") {
-		//quit ##super(pStrategy)
-		set tPythonPath = "/irisdev/app/src/python/"
-		set tPythonClassname = "CustomOperationHandler"
-		set tPythonModule = "custom"
-	}
-
-    // If tPythonPath is not set and tPythonClassname is not set, then we can't do anything
-    if (tPythonPath = "") || (tPythonClassname = "") || (tPythonModule = "") {
-        quit ""
-    }
-    else {
-        // Then set the python path
-        do ..SetPythonPath(tPythonPath)
-        Quit ..GetPythonInstance(tPythonModule, tPythonClassname)
-    }
+	// Set Python path and import module
+	do ..SetPythonPath(tPythonPath)
+	set importlib = ##class(%SYS.Python).Import("importlib")
+	do importlib."import_module"(tPythonModule)
+	
+	// Get the fhir decorator registry
+	set fhirDecorators = ##class(%SYS.Python).Import("fhir_decorators")
+	Quit fhirDecorators.fhir
 }
 
 ClassMethod AddSupportedOperations(pMap As %DynamicObject)
 {
-    // This method is called the BuiltInOperations class to add the supported operations
+    // This method is called by BuiltInOperations to add supported operations
     do ##super(pMap)
 
     set tPythonClass = ..HelperGetPython()
-    // Add the custom python operation
     if $ISOBJECT(tPythonClass) {
-        set body = ##class(%SYS.Python).None()
         set jsonLib = ##class(%SYS.Python).Import("json")
-        if pMap '= "" {
-            set body = jsonLib.loads(pMap.%ToJSON())
-        }
-        set tJson = tPythonClass."add_supported_operations"(body)
-        if tJson '= "" {
-            set pMap = ##class(%DynamicObject).%FromJSON(jsonLib.dumps(tJson))
-        }
+        set operations = tPythonClass."get_operations"()
+        
+        // Iterate through all registered operations
+        set builtins = ##class(%SYS.Python).Import("builtins")
+        set operationsList = builtins.list(operations.items())
+        set len = operationsList."__len__"()
+    	for i=0:1:len-1 {
+            set item = operationsList."__getitem__"(i)
+        	
+	        set key = item."__getitem__"(0)  // (name, scope, resource_type)
+	        set handler = item."__getitem__"(1)
+	        
+	        set name = key."__getitem__"(0)
+	        set name = ""_name
+	        set scope = key."__getitem__"(1)
+	        set resourceType = key."__getitem__"(2)
+	        
+	        // Add to pMap based on scope
+	        if scope = "System" {
+		        if 'pMap."%IsDefined"("system") {
+			        do pMap."%Set"("system", [])
+		        }
+		        set systemOps = pMap."%Get"("system")
+		        do systemOps."%Push"({"name": (name), "definition": ("http://example.com/OperationDefinition/"_name)})
+	        }
+	        elseif (scope = "Type") || (scope = "Instance") {
+		        if 'pMap."%IsDefined"("resource") {
+			        do pMap."%Set"("resource", {})
+		        }
+		        set resourceOps = pMap."%Get"("resource")
+		        if (resourceType '= "*") && (resourceType '= "") {
+			        if 'resourceOps."%IsDefined"(resourceType) {
+				        do resourceOps."%Set"(resourceType, [])
+			        }
+			        set typeOps = resourceOps."%Get"(resourceType)
+			        do typeOps."%Push"({"name": (name), "definition": ("http://example.com/OperationDefinition/"_name)})
+		        }
+	        }
+    	}
     }
 }
 
@@ -57,38 +72,62 @@ ClassMethod AddSupportedOperations(pMap As %DynamicObject)
 /// $Operation (see class documentation for details)
 /// <br> Note, This method may be overridden if the programmer would rather not use the provided
 /// dispatch mechanism.
-ClassMethod ProcessOperation(pService As HS.FHIRServer.API.Service, pRequest As HS.FHIRServer.API.Data.Request, pResponse As HS.FHIRServer.API.Data.Response)
+ClassMethod ProcessOperation(
+	pService As HS.FHIRServer.API.Service,
+	pRequest As HS.FHIRServer.API.Data.Request,
+	pResponse As HS.FHIRServer.API.Data.Response)
 {
+	set tPythonClass = ..HelperGetPython()
+	
+	if $ISOBJECT(tPythonClass) {
+		set body = ##class(%SYS.Python).None()
+		if pRequest.Json '= "" {
+			set jsonLib = ##class(%SYS.Python).Import("json")
+			set body = jsonLib.loads(pRequest.Json.%ToJSON())
+		}
+		
+		Set operationName = pRequest.OperationName
+		Set operationScope = pRequest.OperationScope
+		Set resourceType = pRequest.Type
+		
+		// Get the specific handler for this operation
+		set handler = tPythonClass."get_operation_handler"(operationName, operationScope, resourceType)
+		
+		if $ISOBJECT(handler) {
+			set sc = $$BeginCapture^%SYS.Capture(.msg)
+		    Try {
+                // Call the decorated function
+                set pResponse = handler."__call__"(operationName, operationScope, body, pService, pRequest, pResponse)
+                
+                // Ensure Json property is %DynamicObject if it was set to a Python dict
+                set builtins = ##class(%SYS.Python).Import("builtins")
+                set val = pResponse.Json
+                if builtins.isinstance(val, builtins.dict) || builtins.isinstance(val, builtins.list) {
+                    set json = ##class(%SYS.Python).Import("json")
+                    set str = json.dumps(val)
+                    set pResponse.Json = ##class(%Library.DynamicAbstractObject).%FromJSON(str)
+                }
+            } Catch ex {
+				set sc = $$EndCapture^%SYS.Capture(msg,.msgArray)
+				set ex = ##class(FHIR.Python.Helper).RecoverPythonException(ex)
+                do ##class(FHIR.Python.Helper).HandlePythonException(ex)
+                throw ex
+            }
+			set sc = $$EndCapture^%SYS.Capture(msg,.msgArray)
+			Return $$$OK
+		}
+	}
 
-    set tPythonClass = ..HelperGetPython()
-    // Add the custom python operation
-    // If the python class is not set, then we can't do anything
-    // If the python class is set, then we can call the python method
-    
-    if $ISOBJECT(tPythonClass) {
-        set body = ##class(%SYS.Python).None()
-        if pRequest.Json '= "" {
-            set jsonLib = ##class(%SYS.Python).Import("json")
-            set body = jsonLib.loads(pRequest.Json.%ToJSON())
-        }
-        
-        Set operationName = pRequest.OperationName
-        Set operationScope = pRequest.OperationScope
-        set pResponse = tPythonClass."process_operation"(operationName, operationScope, body, pService, pRequest, pResponse)
-
-        k tPythonClass
-    }
-
-    // Do the default processing
-    Try {
-        do ##super(pService, pRequest, pResponse)
-    }
-    Catch ex {
-         if ex.Name '= "<HSFHIRErr>OperationNotSupported" {
-            throw ex
-         }
-    }
-    
+	// Fall back to default processing if no Python handler or handler didn't handle it
+	Try {
+		do ##super(pService, pRequest, pResponse)
+	}
+	Catch ex {
+        #; if ex.Name '= "<HSFHIRErr>OperationNotSupported" {
+		#; 	throw ex
+		#; }
+        throw ex
+	}
 
 	Return $$$OK
 }

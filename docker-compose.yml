@@ -1,29 +1,31 @@
-version: '3.6'
 services:
+
   iris:
+    image: iris-fhr-python-strategy:latest
     build: 
       context: .
-      dockerfile: Dockerfile
+      dockerfile: dockerfile
     restart: always
+    environment:
+      - ISC_CPF_MERGE_FILE=/irisdev/app/merge.cpf
+      - FHIR_CUSTOMIZATION_PATH=/irisdev/app/tests/e2e/fixtures/
+      - FHIR_PYTHON_MODULE=fhir_customization
     ports: 
       - 1972
-      - 8089:52773
-      - 53773
+      - 8082:52773
     volumes:
-      - ./:/irisdev/app/
-    environment:
-      - ISC_OAUTH_SECRET_PATH=/irisdev/app/misc/auth/secret.json
+      - .:/irisdev/app
+
 
   webgateway:
-    build:
-      context: ./webgateway
-      args:
-        link: 'iris'
-        port: '52773'
-    image: proxyiris:latest
+    image: containers.intersystems.com/intersystems/webgateway:latest-em
+    init: true
     ports:
-    - "8080:80"
-    - "4443:443"
+    - 443:443
+    - 8081:80
+    environment:
+    - ISC_CSP_CONF_FILE=/webgateway/CSP.conf
+    - ISC_CSP_INI_FILE=/webgateway/CSP.ini
     volumes:
-    - ./webgateway/CSP.ini:/opt/webgateway/bin/CSP.ini
-    - ./webgateway/httpd-csp.conf:/usr/local/apache2/conf/extra/httpd-csp.conf
+      - ./webgateway:/webgateway
+      - ./webgateway/cert:/opt/cert
