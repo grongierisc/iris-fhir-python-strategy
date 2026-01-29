@@ -57,10 +57,7 @@ ClassMethod AddSupportedOperations(pMap As %DynamicObject)
 /// $Operation (see class documentation for details)
 /// <br> Note, This method may be overridden if the programmer would rather not use the provided
 /// dispatch mechanism.
-ClassMethod ProcessOperation(
-	pService As HS.FHIRServer.API.Service,
-	pRequest As HS.FHIRServer.API.Data.Request,
-	pResponse As HS.FHIRServer.API.Data.Response)
+ClassMethod ProcessOperation(pService As HS.FHIRServer.API.Service, pRequest As HS.FHIRServer.API.Data.Request, pResponse As HS.FHIRServer.API.Data.Response)
 {
 
     set tPythonClass = ..HelperGetPython()

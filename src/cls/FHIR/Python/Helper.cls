@@ -27,9 +27,7 @@ ClassMethod SetPythonPath(pClasspaths)
     do sys.path.insert(0, pClasspaths)
 }
 
-ClassMethod GetPythonInstance(
-	pModule,
-	pRemoteClassname) As %SYS.Python
+ClassMethod GetPythonInstance(pModule, pRemoteClassname) As %SYS.Python
 {
     set importlib = ##class(%SYS.Python).Import("importlib")
     set builtins = ##class(%SYS.Python).Import("builtins")

@@ -74,11 +74,7 @@ Method %OnNew(pSchema As HS.FHIRServer.Schema) As %Status
 /// @Input pOAuthClient The OAuth 2.0 Client Name, as defined in the Management Portal at System Administration > Security > OAuth 2.0 > Client.
 /// @Input pBaseURL The base URL, including scheme, host, port and path of the end point for the current FHIR interaction.
 /// @Input pUserame The effective username for the current FHIR interaction.
-Method SetInstance(
-	pTokenString As %String = "",
-	pOAuthClient As %String = "",
-	pBaseURL As %String = "",
-	pUsername As %String = "")
+Method SetInstance(pTokenString As %String = "", pOAuthClient As %String = "", pBaseURL As %String = "", pUsername As %String = "")
 {
 	if $ISOBJECT(..PythonClass) {
 		Try {
@@ -118,10 +114,7 @@ Method GetIntrospection(Output pJWTObj) As %Status [ Private ]
 /// - pBARoles   : Existing basic authentication user roles (e.g., $roles value).
 /// Output:<br>
 /// - pUserInfo(): Array of user information, subscripted by item name (e.g. pUserInfo("Username") = "_SYSTEM").
-Method GetUserInfo(
-	pBAUsername As %String,
-	pBARoles As %String,
-	Output pUserInfo)
+Method GetUserInfo(pBAUsername As %String, pBARoles As %String, Output pUserInfo)
 {
 	if $ISOBJECT(..PythonClass) {
 		set builtins = ##class(%SYS.Python).Builtins()
@@ -138,10 +131,7 @@ Method GetUserInfo(
 /// Verify that the access token allows the current interaction request based on the resource type,
 /// resource id and required privilege. If not allowed, this method will Throw. Otherwise, it will
 /// simply Return.
-Method VerifyResourceIdRequest(
-	pResourceType As %String,
-	pResourceId As %String,
-	pRequiredPrivilege As %String)
+Method VerifyResourceIdRequest(pResourceType As %String, pResourceId As %String, pRequiredPrivilege As %String)
 {
 	if $ISOBJECT(..PythonClass) {
 		do ..PythonClass."verify_resource_id_request"(pResourceType, pResourceId, pRequiredPrivilege)
@@ -151,10 +141,7 @@ Method VerifyResourceIdRequest(
 /// Verify that the access token allows the current interaction on the specified resource, based on
 /// the content and required privilege. If not allowed, this method will Throw. Otherwise, it will
 /// simply Return.
-Method VerifyResourceContent(
-	pResourceJson As %DynamicObject,
-	pRequiredPrivilege As %String,
-	pAllowSharedResource As %Boolean = 0)
+Method VerifyResourceContent(pResourceJson As %DynamicObject, pRequiredPrivilege As %String, pAllowSharedResource As %Boolean = 0)
 {
 	if $ISOBJECT(..PythonClass) {
 		do ..PythonClass."verify_resource_content"(pResourceJson, pRequiredPrivilege, pAllowSharedResource)
@@ -164,10 +151,7 @@ Method VerifyResourceContent(
 /// Verify that the access token allows the history-instance request based on the contents of
 /// the interaction response and required privilege. If not allowed, this method will Throw.
 /// Otherwise, it will simply Return.
-Method VerifyHistoryInstanceResponse(
-	pResourceType As %String,
-	pResourceJson As %DynamicObject,
-	pRequiredPrivilege As %String)
+Method VerifyHistoryInstanceResponse(pResourceType As %String, pResourceJson As %DynamicObject, pRequiredPrivilege As %String)
 {
 	if $ISOBJECT(..PythonClass) {
 		do ..PythonClass."verify_history_instance_response"(pResourceType, pResourceJson, pRequiredPrivilege)
@@ -176,10 +160,7 @@ Method VerifyHistoryInstanceResponse(
 
 /// Verify that the access token allows the delete request based on the specified resource type
 /// and resource id. If not allowed, this method will Throw. Otherwise, it will simply Return.
-Method VerifyDeleteRequest(
-	pResourceType As %String,
-	pResourceId As %String,
-	pRequiredPrivilege As %String)
+Method VerifyDeleteRequest(pResourceType As %String, pResourceId As %String, pRequiredPrivilege As %String)
 {
 	if $ISOBJECT(..PythonClass) {
 		do ..PythonClass."verify_delete_request"(pResourceType, pResourceId, pRequiredPrivilege)
@@ -189,12 +170,7 @@ Method VerifyDeleteRequest(
 /// Verify that the access token allows the search request based on some or all of resource type,
 /// resource id, compartment type, search parameters and required privilege. If not allowed, this
 /// method will Throw. Otherwise, it will simply Return.
-Method VerifySearchRequest(
-	pResourceType As %String,
-	pCompartmentResourceType As %String,
-	pCompartmentResourceId As %String,
-	pParameters As HS.FHIRServer.API.Data.QueryParameters,
-	pRequiredPrivilege As %String)
+Method VerifySearchRequest(pResourceType As %String, pCompartmentResourceType As %String, pCompartmentResourceId As %String, pParameters As HS.FHIRServer.API.Data.QueryParameters, pRequiredPrivilege As %String)
 {
 	if $ISOBJECT(..PythonClass) {
 		do ..PythonClass."verify_search_request"(pResourceType, pCompartmentResourceType, pCompartmentResourceId, pParameters, pRequiredPrivilege)

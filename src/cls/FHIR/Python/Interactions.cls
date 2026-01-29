@@ -30,10 +30,7 @@ Method %OnNew(pStrategy As HS.FHIRServer.Storage.Json.InteractionsStrategy) As %
 	quit ##super(pStrategy)
 }
 
-Method OnBeforeRequest(
-	pFHIRService As HS.FHIRServer.API.Service,
-	pFHIRRequest As HS.FHIRServer.API.Data.Request,
-	pTimeout As %Integer)
+Method OnBeforeRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest As HS.FHIRServer.API.Data.Request, pTimeout As %Integer)
 {
 	// OnBeforeRequest is called before each request is processed.
 	if $ISOBJECT(..PythonClass) {
@@ -46,10 +43,7 @@ Method OnBeforeRequest(
 	}
 }
 
-Method OnAfterRequest(
-	pFHIRService As HS.FHIRServer.API.Service,
-	pFHIRRequest As HS.FHIRServer.API.Data.Request,
-	pFHIRResponse As HS.FHIRServer.API.Data.Response)
+Method OnAfterRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest As HS.FHIRServer.API.Data.Request, pFHIRResponse As HS.FHIRServer.API.Data.Response)
 {
 	// OnAfterRequest is called after each request is processed.
 	if $ISOBJECT(..PythonClass) {
@@ -77,9 +71,7 @@ Method PostProcessRead(pResourceObject As %DynamicObject) As %Boolean
 	quit 1
 }
 
-Method PostProcessSearch(
-	pRS As HS.FHIRServer.Util.SearchResult,
-	pResourceType As %String) As %Status
+Method PostProcessSearch(pRS As HS.FHIRServer.Util.SearchResult, pResourceType As %String) As %Status
 {
 	// PostProcessSearch is called after a search is performed.
 	// Return $$$OK to indicate that the search was successful.
@@ -90,26 +82,18 @@ Method PostProcessSearch(
 	quit $$$OK
 }
 
-Method Read(
-	pResourceType As %String,
-	pResourceId As %String,
-	pVersionId As %String = "") As %DynamicObject
+Method Read(pResourceType As %String, pResourceId As %String, pVersionId As %String = "") As %DynamicObject
 {
 	return ##super(pResourceType, pResourceId, pVersionId)
 }
 
-Method Add(
-	pResourceObj As %DynamicObject,
-	pResourceIdToAssign As %String = "",
-	pHttpMethod = "POST") As %String
+Method Add(pResourceObj As %DynamicObject, pResourceIdToAssign As %String = "", pHttpMethod = "POST") As %String
 {
 	return ##super(pResourceObj, pResourceIdToAssign, pHttpMethod)
 }
 
 /// Returns VersionId for the "deleted" version
-Method Delete(
-	pResourceType As %String,
-	pResourceId As %String) As %String
+Method Delete(pResourceType As %String, pResourceId As %String) As %String
 {
 	return ##super(pResourceType, pResourceId)
 }
