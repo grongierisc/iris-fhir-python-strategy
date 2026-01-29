@@ -16,12 +16,17 @@ ClassMethod ValidateBundle(
 	set decoratorsModule = ##class(%SYS.Python).Import("fhir_decorators")
 	set registry = decoratorsModule.fhir
 	
+	// convert pResourceObject to Python object
+	set jsonLib = ##class(%SYS.Python).Import("json")
+	set resourceJson = pResourceObject.%ToJSON()
+	set resourcePyObj = jsonLib.loads(resourceJson)
+
 	set handlers = registry."get_on_validate_bundle_handlers"()
 	if handlers."__len__"() = 0 {
 		do ##super(pResourceObject, pFHIRVersion)
 		quit
 	}
-	do ..RunHandlers(handlers, pResourceObject, pFHIRVersion)
+	do ..RunHandlers(handlers, resourcePyObj, pFHIRVersion)
 }
 
 }

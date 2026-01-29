@@ -194,6 +194,58 @@ def test_search_filtering_hides_blocked_patients(fhir_base_url):
 
 
 @pytest.mark.e2e
+def test_observation_creation_fails_custom_validation(fhir_base_url):
+    """
+    Test that creating an Observation triggers the custom validation hook
+    and raises a ValueError, which results in an error response.
+    """
+    obs = {
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {"text": "test"}
+    }
+    
+    response = requests.post(
+        f"{fhir_base_url}/fhir/r4/Observation",
+        json=obs,
+        headers={"Content-Type": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+    )
+    
+    # Expecting error due to raised ValueError("Custom Error Observation")
+    assert response.status_code >= 400
+    outcome = response.json()
+    assert outcome["resourceType"] == "OperationOutcome"
+    text = outcome["issue"][0]["details"]["text"]
+    assert "Custom Error Observation" in text
+
+
+@pytest.mark.e2e
+def test_transaction_bundle_fails_custom_validation(fhir_base_url):
+    """
+    Test that posting a transaction bundle triggers on_validate_bundle.
+    """
+    bundle = {
+        "resourceType": "Bundle",
+        "type": "transaction",
+        "entry": [] # Helper raises ValueError if entry is missing/empty
+    }
+    
+    response = requests.post(
+        f"{fhir_base_url}/fhir/r4",
+        json=bundle,
+        headers={"Content-Type": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+    )
+    
+    # Expect error due to validation failure
+    assert response.status_code >= 400
+    outcome = response.json()
+    text = outcome["issue"][0]["details"]["text"]
+    assert "Transaction bundle must have entries" in text
+
+
+@pytest.mark.e2e
 def test_unhandled_python_exception_returns_500(fhir_base_url):
     """
     Test that a generic Python exception (ZeroDivisionError) in validation
