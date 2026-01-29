@@ -197,53 +197,84 @@ def customize_metadata(capability_statement):
 
 These hooks allow you to intercept and modify standard FHIR interactions.
 
-| Pre-Process (Before DB) | Post-Process (After DB) | Description |
-|-------------------------|--------------------------|-------------|
-| `@fhir.on_before_create(type)` | `@fhir.on_after_create(type)` | Create Hook (POST) |
-| `@fhir.on_before_read(type)` | `@fhir.on_after_read(type)` | Read Hook (GET) |
-| `@fhir.on_before_update(type)` | `@fhir.on_after_update(type)` | Update Hook (PUT) |
-| `@fhir.on_before_delete(type)` | `@fhir.on_after_delete(type)` | Delete Hook (DELETE) |
-| `@fhir.on_before_search(type)` | `@fhir.on_after_search(type)` | Search Hook |
+#### Pre-Process Hooks
+Runs before database operation. Signature: `def handler(fhir_service, fhir_request, body, timeout):`
 
-*Note: `type` is optional. If omitted (e.g., `@fhir.on_before_create()`), it applies to **all** resource types.*
+*   `@fhir.on_before_create(resource_type)`
+*   `@fhir.on_before_read(resource_type)`
+*   `@fhir.on_before_update(resource_type)`
+*   `@fhir.on_before_delete(resource_type)`
+*   `@fhir.on_before_search(resource_type)`
+
+#### Post-Process Hooks
+Runs after database operation.
+
+*   `@fhir.on_after_create(resource_type)`
+    *   Signature: `def handler(fhir_service, fhir_request, fhir_response, body):`
+*   `@fhir.on_after_update(resource_type)`
+    *   Signature: `def handler(fhir_service, fhir_request, fhir_response, body):`
+*   `@fhir.on_after_delete(resource_type)`
+    *   Signature: `def handler(fhir_service, fhir_request, fhir_response, body):`
+*   `@fhir.on_after_read(resource_type)`
+    *   Signature: `def handler(resource):` -> Returns `bool` (False to hide/404)
+*   `@fhir.on_after_search(resource_type)`
+    *   Signature: `def handler(result_set, resource_type):`
+
+*Note: `resource_type` is optional. If omitted, applies to **all** types.*
 
 ### Global Request Hooks
 
-| Decorator | Description |
-|-----------|-------------|
-| `@fhir.on_before_request` | Runs before **any** interaction. Useful for logging or setting up user context. |
-| `@fhir.on_after_request` | Runs after **any** interaction sequence. Useful for cleanup. |
+*   `@fhir.on_before_request`
+    *   Runs before **any** interaction. Useful for logging or setting up user context.
+    *   Signature: `def handler(fhir_service, fhir_request, body, timeout):`
+*   `@fhir.on_after_request`
+    *   Runs after **any** interaction sequence. Useful for cleanup.
+    *   Signature: `def handler(fhir_service, fhir_request, fhir_response, body):`
 
 ### Capability Statement
 
-| Decorator | Description |
-|-----------|-------------|
-| `@fhir.on_capability_statement` | Customize the server's CapabilityStatement (Metadata). |
+*   `@fhir.on_capability_statement`
+    *   Customize the server's CapabilityStatement (Metadata).
+    *   Signature: `def handler(capability_statement):` -> Returns `dict`
 
 ### Custom Operations
 
-| Decorator | Description |
-|-----------|-------------|
-| `@fhir.operation(name, scope, type)` | Implement custom FHIR operations (e.g., `$diff`). |
+*   `@fhir.operation(name, scope, resource_type)`
+    *   Implement custom FHIR operations (e.g., `$diff`).
+    *   Signature: `def handler(operation_name, operation_scope, body, fhir_service, fhir_request, fhir_response):`
 
 ### OAuth & Security
 
-| Decorator | Description |
-|-----------|-------------|
-| `@fhir.oauth_get_user_info` | Extract user info from token. |
-| `@fhir.oauth_get_introspection` | Customize token introspection. |
-| `@fhir.consent(type)` | Implement consent logic. |
-| `@fhir.oauth_verify_resource_id(type)` | Verify access by Resource ID. |
-| `@fhir.oauth_verify_resource_content(type)` | Verify access by Resource Content. |
-| `@fhir.oauth_verify_search(type)` | Verify access for Search parameters. |
-| `@fhir.oauth_verify_system_level` | Verify system administration privileges. |
+*   `@fhir.oauth_get_user_info`
+    *   Extract user info from token.
+    *   Signature: `def handler(username, roles):` -> Returns `dict`
+*   `@fhir.oauth_get_introspection`
+    *   Customize token introspection.
+    *   Signature: `def handler():` -> Returns `dict`
+*   `@fhir.consent(resource_type)`
+    *   Implement consent logic.
+    *   Signature: `def handler(resource):` -> Returns `bool`
+*   `@fhir.oauth_verify_resource_id(resource_type)`
+    *   Verify access by Resource ID.
+    *   Signature: `def handler(resource_type, resource_id, required_privilege):` -> Returns `bool`
+*   `@fhir.oauth_verify_resource_content(resource_type)`
+    *   Verify access by Resource Content.
+    *   Signature: `def handler(resource_dict, required_privilege, allow_shared):` -> Returns `bool`
+*   `@fhir.oauth_verify_search(resource_type)`
+    *   Verify access for Search parameters.
+    *   Signature: `def handler(resource_type, compartment_type, compartment_id, parameters, required_privilege):` -> Returns `bool`
+*   `@fhir.oauth_verify_system_level`
+    *   Verify system administration privileges.
+    *   Signature: `def handler():` -> Returns `bool`
 
 ### Validation
 
-| Decorator | Description |
-|-----------|-------------|
-| `@fhir.on_validate_resource(type)` | Custom logic to validate a resource. |
-| `@fhir.on_validate_bundle` | Custom logic to validate a bundle. |
+*   `@fhir.on_validate_resource(resource_type)`
+    *   Custom logic to validate a resource.
+    *   Signature: `def handler(resource, is_in_transaction):`
+*   `@fhir.on_validate_bundle`
+    *   Custom logic to validate a bundle.
+    *   Signature: `def handler(bundle, fhir_version):`
 
 ## Configuration
 
