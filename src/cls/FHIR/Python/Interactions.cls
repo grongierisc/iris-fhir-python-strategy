@@ -57,29 +57,29 @@ Method OnBeforeRequest(
 	if $ISOBJECT(..PythonClass) {
 		set requestMethod = pFHIRRequest.RequestMethod
 		set resourceType = pFHIRRequest.Type
+		set interaction = pFHIRRequest.Interaction
 		set hasHandlers = 0
-		set handlers = ..PythonClass."get_before_request_handlers"()
+		set handlers = ..PythonClass."get_on_before_request_handlers"()
 		if handlers."__len__"() > 0 {
 			set hasHandlers = 1
 		}
+		
+		set specificHandlers = ##class(%SYS.Python).None()
 
 		if (requestMethod = "POST") && (resourceType '= "") {
-			set createHandlers = ..PythonClass."get_create_handlers"(resourceType)
-			if createHandlers."__len__"() > 0 {
-				set hasHandlers = 1
-			}
+			set specificHandlers = ..PythonClass."get_on_before_create_handlers"(resourceType)
+		} elseif (requestMethod = "PUT") && (resourceType '= "") {
+			set specificHandlers = ..PythonClass."get_on_before_update_handlers"(resourceType)
+		} elseif (requestMethod = "DELETE") && (resourceType '= "") {
+			set specificHandlers = ..PythonClass."get_on_before_delete_handlers"(resourceType)
+		} elseif (interaction = "read") && (resourceType '= "") {
+			set specificHandlers = ..PythonClass."get_on_before_read_handlers"(resourceType)
+		} elseif (interaction = "search-type") && (resourceType '= "") {
+			set specificHandlers = ..PythonClass."get_on_before_search_handlers"(resourceType)
 		}
-		if (requestMethod = "PUT") && (resourceType '= "") {
-			set updateHandlers = ..PythonClass."get_update_handlers"(resourceType)
-			if updateHandlers."__len__"() > 0 {
-				set hasHandlers = 1
-			}
-		}
-		if (requestMethod = "DELETE") && (resourceType '= "") {
-			set deleteHandlers = ..PythonClass."get_delete_handlers"(resourceType)
-			if deleteHandlers."__len__"() > 0 {
-				set hasHandlers = 1
-			}
+
+		if (specificHandlers '= ##class(%SYS.Python).None()) && (specificHandlers."__len__"() > 0) {
+			set hasHandlers = 1
 		}
 
 		if 'hasHandlers {
@@ -95,16 +95,8 @@ Method OnBeforeRequest(
 		
 		do ..RunHandlers(handlers, pFHIRService, pFHIRRequest, body, pTimeout)
 		
-		if (requestMethod = "POST") && (resourceType '= "") {
-			do ..RunHandlers(createHandlers, pFHIRService, pFHIRRequest, body, pTimeout)
-		}
-		
-		if (requestMethod = "PUT") && (resourceType '= "") {
-			do ..RunHandlers(updateHandlers, pFHIRService, pFHIRRequest, body, pTimeout)
-		}
-		
-		if (requestMethod = "DELETE") && (resourceType '= "") {
-			do ..RunHandlers(deleteHandlers, pFHIRService, pFHIRRequest, body, pTimeout)
+		if (specificHandlers '= ##class(%SYS.Python).None()) {
+			do ..RunHandlers(specificHandlers, pFHIRService, pFHIRRequest, body, pTimeout)
 		}
 	} else {
 		do ##super(pFHIRService, pFHIRRequest, pTimeout)
@@ -119,12 +111,33 @@ Method OnAfterRequest(
 	// OnAfterRequest is called after each request is processed.
 	// Call all registered after_request handlers
 	if $ISOBJECT(..PythonClass) {
-		set handlers = ..PythonClass."get_after_request_handlers"()
-		if handlers."__len__"() = 0 {
+		set requestMethod = pFHIRRequest.RequestMethod
+		set resourceType = pFHIRRequest.Type
+		set hasHandlers = 0
+
+		set handlers = ..PythonClass."get_on_after_request_handlers"()
+		if handlers."__len__"() > 0 {
+			set hasHandlers = 1
+		}
+
+		set specificHandlers = ##class(%SYS.Python).None()
+		if (requestMethod = "POST") && (resourceType '= "") {
+			set specificHandlers = ..PythonClass."get_on_after_create_handlers"(resourceType)
+		} elseif (requestMethod = "PUT") && (resourceType '= "") {
+			set specificHandlers = ..PythonClass."get_on_after_update_handlers"(resourceType)
+		} elseif (requestMethod = "DELETE") && (resourceType '= "") {
+			set specificHandlers = ..PythonClass."get_on_after_delete_handlers"(resourceType)
+		}
+
+		if (specificHandlers '= ##class(%SYS.Python).None()) && (specificHandlers."__len__"() > 0) {
+			set hasHandlers = 1
+		}
+		
+		if 'hasHandlers {
 			do ##super(pFHIRService, pFHIRRequest, pFHIRResponse)
 			quit
 		}
-
+		
 		set body = ##class(%SYS.Python).None()
 		if pFHIRResponse.Json '= "" {
 			set jsonLib = ##class(%SYS.Python).Import("json")
@@ -132,6 +145,10 @@ Method OnAfterRequest(
 		}
 		
 		do ..RunHandlers(handlers, pFHIRService, pFHIRRequest, pFHIRResponse, body)
+		
+		if (specificHandlers '= ##class(%SYS.Python).None()) {
+			do ..RunHandlers(specificHandlers, pFHIRService, pFHIRRequest, pFHIRResponse, body)
+		}
 
 	} else {
 		do ##super(pFHIRService, pFHIRRequest, pFHIRResponse)
@@ -151,7 +168,7 @@ Method PostProcessRead(pResourceObject As %DynamicObject) As %Boolean
 		set resourceType = body."get"("resourceType")
 		
 		// Get all post_process_read handlers for this resource type
-		set handlers = ..PythonClass."get_post_process_read_handlers"(resourceType)
+		set handlers = ..PythonClass."get_on_after_read_handlers"(resourceType)
 		if handlers."__len__"() = 0 {
 			return ##super(pResourceObject)
 		}
@@ -172,7 +189,7 @@ Method PostProcessSearch(
 	// Call all registered post_process_search handlers
 		if $ISOBJECT(..PythonClass) {
 			// Get all post_process_search handlers for this resource type
-			set handlers = ..PythonClass."get_post_process_search_handlers"(pResourceType)
+			set handlers = ..PythonClass."get_on_after_search_handlers"(pResourceType)
 			if handlers."__len__"() = 0 {
 				do ##super(pRS, pResourceType)
 				quit $$$OK

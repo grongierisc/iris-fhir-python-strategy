@@ -6,15 +6,15 @@ def test_validate_resource_pipeline_calls_handlers():
     fhir = FhirDecorators()
     state = []
 
-    @fhir.validate_resource("Patient")
+    @fhir.on_validate_resource("Patient")
     def validate_one(resource, is_in_transaction=False):
         state.append("one")
 
-    @fhir.validate_resource("Patient")
+    @fhir.on_validate_resource("Patient")
     def validate_two(resource, is_in_transaction=False):
         state.append("two")
 
-    handlers = fhir.get_validate_resource_handlers("Patient")
+    handlers = fhir.get_on_validate_resource_handlers("Patient")
     for handler in handlers:
         handler({}, False)
     
@@ -25,11 +25,11 @@ def test_validate_bundle_pipeline_calls_handlers():
     fhir = FhirDecorators()
     state = []
 
-    @fhir.validate_bundle
+    @fhir.on_validate_bundle
     def validate(resource, fhir_version):
         state.append("validated")
 
-    handlers = fhir.get_validate_bundle_handlers()
+    handlers = fhir.get_on_validate_bundle_handlers()
     for handler in handlers:
         handler({}, "R4")
 
@@ -40,16 +40,15 @@ def test_create_pipeline_calls_wildcard_and_specific():
     fhir = FhirDecorators()
     state = []
 
-    @fhir.on_create("Patient")
+    @fhir.on_before_create("Patient")
     def create_specific(service, request, body, timeout):
         state.append("specific")
 
-    @fhir.on_create()
+    @fhir.on_before_create()
     def create_wildcard(service, request, body, timeout):
         state.append("wildcard")
 
-    handlers = fhir.get_create_handlers("Patient")
-    # Order usually depends on implementation, but typically wildcards then specific or vice versa. 
+    handlers = fhir.get_on_before_create_handlers("Patient")
     # Based on other tests: wildcard then specific
     for handler in handlers:
         handler(None, None, None, None)
@@ -62,11 +61,11 @@ def test_update_pipeline_calls_handlers():
     fhir = FhirDecorators()
     state = []
 
-    @fhir.on_update("Patient")
+    @fhir.on_before_update("Patient")
     def update_handler(service, request, body, timeout):
         state.append("update")
 
-    handlers = fhir.get_update_handlers("Patient")
+    handlers = fhir.get_on_before_update_handlers("Patient")
     for handler in handlers:
         handler(None, None, None, None)
 
@@ -77,11 +76,11 @@ def test_delete_pipeline_calls_handlers():
     fhir = FhirDecorators()
     state = []
 
-    @fhir.on_delete("Patient")
+    @fhir.on_before_delete("Patient")
     def delete_handler(service, request, body, timeout):
         state.append("delete")
 
-    handlers = fhir.get_delete_handlers("Patient")
+    handlers = fhir.get_on_before_delete_handlers("Patient")
     for handler in handlers:
         handler(None, None, None, None)
 

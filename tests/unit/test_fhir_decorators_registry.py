@@ -11,65 +11,65 @@ def test_registers_capability_and_request_hooks():
     def cap_handler(statement):
         return statement
 
-    @fhir.before_request
+    @fhir.on_before_request
     def before_handler(service, request, body, timeout):
         return None
 
-    @fhir.after_request
+    @fhir.on_after_request
     def after_handler(service, request, response, body):
         return None
 
     assert fhir.get_capability_statement_handlers() == [cap_handler]
-    assert fhir.get_before_request_handlers() == [before_handler]
-    assert fhir.get_after_request_handlers() == [after_handler]
+    assert fhir.get_on_before_request_handlers() == [before_handler]
+    assert fhir.get_on_after_request_handlers() == [after_handler]
 
 
 @pytest.mark.unit
-def test_post_process_read_orders_wildcard_then_specific():
+def test_on_after_read_orders_wildcard_then_specific():
     fhir = FhirDecorators()
 
-    @fhir.post_process_read()
+    @fhir.on_after_read()
     def wildcard_handler(resource):
         return True
 
-    @fhir.post_process_read("Patient")
+    @fhir.on_after_read("Patient")
     def patient_handler(resource):
         return True
 
-    handlers = fhir.get_post_process_read_handlers("Patient")
+    handlers = fhir.get_on_after_read_handlers("Patient")
     assert handlers == [wildcard_handler, patient_handler]
 
 
 @pytest.mark.unit
-def test_post_process_search_orders_wildcard_then_specific():
+def test_on_after_search_orders_wildcard_then_specific():
     fhir = FhirDecorators()
 
-    @fhir.post_process_search()
+    @fhir.on_after_search()
     def wildcard_handler(rs, resource_type):
         return None
 
-    @fhir.post_process_search("Patient")
+    @fhir.on_after_search("Patient")
     def patient_handler(rs, resource_type):
         return None
 
-    handlers = fhir.get_post_process_search_handlers("Patient")
+    handlers = fhir.get_on_after_search_handlers("Patient")
     assert handlers == [wildcard_handler, patient_handler]
 
 
 @pytest.mark.unit
-def test_on_read_and_on_search_aliases():
+def test_on_after_read_and_on_after_search_registration():
     fhir = FhirDecorators()
 
-    @fhir.on_read("Patient")
+    @fhir.on_after_read("Patient")
     def read_handler(resource):
         return True
 
-    @fhir.on_search("Patient")
+    @fhir.on_after_search("Patient")
     def search_handler(rs, resource_type):
         return None
 
-    assert fhir.get_post_process_read_handlers("Patient") == [read_handler]
-    assert fhir.get_post_process_search_handlers("Patient") == [search_handler]
+    assert fhir.get_on_after_read_handlers("Patient") == [read_handler]
+    assert fhir.get_on_after_search_handlers("Patient") == [search_handler]
 
 
 @pytest.mark.unit
@@ -93,15 +93,15 @@ def test_operation_resolution_prefers_specific_then_wildcard():
 def test_validate_resource_handlers_include_wildcard():
     fhir = FhirDecorators()
 
-    @fhir.validate_resource("*")
+    @fhir.on_validate_resource("*")
     def validate_any(resource, is_in_transaction=False):
         return None
 
-    @fhir.validate_resource("Patient")
+    @fhir.on_validate_resource("Patient")
     def validate_patient(resource, is_in_transaction=False):
         return None
 
-    handlers = fhir.get_validate_resource_handlers("Patient")
+    handlers = fhir.get_on_validate_resource_handlers("Patient")
     assert handlers == [validate_any, validate_patient]
 
 
@@ -154,36 +154,69 @@ def test_oauth_other_handlers_collected():
 
 
 @pytest.mark.unit
-def test_create_update_delete_handlers_include_wildcard():
+def test_before_crud_handlers_include_wildcard():
     fhir = FhirDecorators()
 
-    @fhir.on_create()
+    @fhir.on_before_create()
     def create_any(service, request, body, timeout):
         return None
 
-    @fhir.on_create("Patient")
+    @fhir.on_before_create("Patient")
     def create_patient(service, request, body, timeout):
         return None
 
-    @fhir.on_update()
+    @fhir.on_before_update()
     def update_any(service, request, body, timeout):
         return None
 
-    @fhir.on_update("Patient")
+    @fhir.on_before_update("Patient")
     def update_patient(service, request, body, timeout):
         return None
 
-    @fhir.on_delete()
+    @fhir.on_before_delete()
     def delete_any(service, request, body, timeout):
         return None
 
-    @fhir.on_delete("Patient")
+    @fhir.on_before_delete("Patient")
     def delete_patient(service, request, body, timeout):
         return None
 
-    assert fhir.get_create_handlers("Patient") == [create_any, create_patient]
-    assert fhir.get_update_handlers("Patient") == [update_any, update_patient]
-    assert fhir.get_delete_handlers("Patient") == [delete_any, delete_patient]
+    assert fhir.get_on_before_create_handlers("Patient") == [create_any, create_patient]
+    assert fhir.get_on_before_update_handlers("Patient") == [update_any, update_patient]
+    assert fhir.get_on_before_delete_handlers("Patient") == [delete_any, delete_patient]
+
+
+@pytest.mark.unit
+def test_after_crud_handlers_include_wildcard():
+    fhir = FhirDecorators()
+
+    @fhir.on_after_create()
+    def create_any(service, request, response, body):
+        return None
+
+    @fhir.on_after_create("Patient")
+    def create_patient(service, request, response, body):
+        return None
+
+    @fhir.on_after_update()
+    def update_any(service, request, response, body):
+        return None
+
+    @fhir.on_after_update("Patient")
+    def update_patient(service, request, response, body):
+        return None
+
+    @fhir.on_after_delete()
+    def delete_any(service, request, response, body):
+        return None
+
+    @fhir.on_after_delete("Patient")
+    def delete_patient(service, request, response, body):
+        return None
+
+    assert fhir.get_on_after_create_handlers("Patient") == [create_any, create_patient]
+    assert fhir.get_on_after_update_handlers("Patient") == [update_any, update_patient]
+    assert fhir.get_on_after_delete_handlers("Patient") == [delete_any, delete_patient]
 
 
 @pytest.mark.unit
@@ -206,11 +239,11 @@ def test_consent_handlers_include_wildcard():
 def test_validate_bundle_handlers_registered():
     fhir = FhirDecorators()
 
-    @fhir.validate_bundle
+    @fhir.on_validate_bundle
     def validate_bundle(resource, fhir_version):
         return None
 
-    assert fhir.get_validate_bundle_handlers() == [validate_bundle]
+    assert fhir.get_on_validate_bundle_handlers() == [validate_bundle]
 
 
 @pytest.mark.unit

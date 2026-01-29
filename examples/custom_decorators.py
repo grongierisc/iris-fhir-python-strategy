@@ -6,7 +6,8 @@ Simply import fhir and decorate your functions.
 """
 
 import json
-from contextvars import ContextVar
+import threading
+
 
 try:
     from fhir_decorators import fhir
@@ -35,19 +36,17 @@ class RequestContext:
         self.base_url = ""
         self.username = ""
 
-_request_context = ContextVar("fhir_request_context", default=None)
+_request_context_local = threading.local()
 
 
 def get_request_context():
-    ctx = _request_context.get()
-    if ctx is None:
-        ctx = RequestContext()
-        _request_context.set(ctx)
-    return ctx
+    if not hasattr(_request_context_local, "ctx"):
+        _request_context_local.ctx = RequestContext()
+    return _request_context_local.ctx
 
 
 def set_request_context(ctx):
-    _request_context.set(ctx)
+    _request_context_local.ctx = ctx
 
 
 # ==================== Capability Statement ====================
@@ -66,7 +65,7 @@ def customize_capability_statement(capability_statement):
 
 # ==================== Request/Response Hooks ====================
 
-@fhir.before_request
+@fhir.on_before_request
 def extract_user_context(fhir_service, fhir_request, body, timeout):
     """
     Extract user and roles for consent evaluation.
@@ -88,7 +87,7 @@ def extract_user_context(fhir_service, fhir_request, body, timeout):
     #         ctx.security_list += get_security(scope)
 
 
-@fhir.after_request
+@fhir.on_after_request
 def cleanup_context(fhir_service, fhir_request, fhir_response, body):
     """
     Clear request-scoped state.
@@ -98,7 +97,7 @@ def cleanup_context(fhir_service, fhir_request, fhir_response, body):
 
 # ==================== Read/Search Processing ====================
 
-@fhir.on_read("Patient")
+@fhir.on_after_read("Patient")
 def filter_patient_read(fhir_object):
     """
     Apply consent rules to Patient reads.
@@ -109,7 +108,7 @@ def filter_patient_read(fhir_object):
     return True
 
 
-@fhir.on_read()  # All resource types
+@fhir.on_after_read()  # All resource types
 def log_all_reads(fhir_object):
     """
     Log all read operations.
@@ -118,7 +117,7 @@ def log_all_reads(fhir_object):
     return True
 
 
-@fhir.on_search("Patient")
+@fhir.on_after_search("Patient")
 def filter_patient_search(rs, resource_type):
     """
     Filter Patient search results based on consent.
@@ -155,7 +154,7 @@ def patient_consent_rules(fhir_object, user_context):
 
 # ==================== CRUD Operations ====================
 
-@fhir.on_create("Patient")
+@fhir.on_before_create("Patient")
 def validate_patient_creation(fhir_service, fhir_request, body, timeout):
     """
     Validate Patient resource before creation.
@@ -164,7 +163,7 @@ def validate_patient_creation(fhir_service, fhir_request, body, timeout):
     pass
 
 
-@fhir.on_update("Patient")
+@fhir.on_before_update("Patient")
 def audit_patient_update(fhir_service, fhir_request, body, timeout):
     """
     Audit Patient updates.
@@ -378,7 +377,7 @@ def verify_system_access():
 
 # ==================== Validation Decorators ====================
 
-@fhir.validate_resource("*")
+@fhir.on_validate_resource("*")
 def generic_resource_validation(resource_object, is_in_transaction=False):
     """
     Generic resource validation for all resource types.
@@ -388,7 +387,7 @@ def generic_resource_validation(resource_object, is_in_transaction=False):
     if "id" not in resource_object:
         raise ValueError("Resource must have an 'id' field")
 
-@fhir.validate_resource("Patient")
+@fhir.on_validate_resource("Patient")
 def validate_patient_resource(resource_object, is_in_transaction=False):
     """
     Custom validation for Patient resources.
@@ -412,7 +411,7 @@ def validate_patient_resource(resource_object, is_in_transaction=False):
                     raise ValueError("Hospital MRN must start with 'MRN-'")
 
 
-@fhir.validate_resource("Observation")
+@fhir.on_validate_resource("Observation")
 def validate_observation_resource(resource_object, is_in_transaction=False):
     """
     Custom validation for Observation resources.
@@ -426,7 +425,7 @@ def validate_observation_resource(resource_object, is_in_transaction=False):
                     raise ValueError("Critical observations must include a note")
 
 
-@fhir.validate_bundle
+@fhir.on_validate_bundle
 def validate_transaction_bundle(resource_object, fhir_version):
     """
     Custom validation for Bundle resources.

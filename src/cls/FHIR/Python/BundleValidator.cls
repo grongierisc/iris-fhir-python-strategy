@@ -16,7 +16,7 @@ ClassMethod ValidateBundle(
 	set decoratorsModule = ##class(%SYS.Python).Import("fhir_decorators")
 	set registry = decoratorsModule.fhir
 	
-	set handlers = registry."get_validate_bundle_handlers"()
+	set handlers = registry."get_on_validate_bundle_handlers"()
 	if handlers."__len__"() = 0 {
 		do ##super(pResourceObject, pFHIRVersion)
 		quit

@@ -32,15 +32,25 @@ class FhirDecorators:
     def __init__(self):
         # Registries for different customization points
         self._capability_statement_handlers = []
-        self._before_request_handlers = []
-        self._after_request_handlers = []
-        self._post_process_read_handlers = {}  # {resource_type: [handlers]}
-        self._post_process_search_handlers = {}  # {resource_type: [handlers]}
+        self._on_before_request_handlers = []
+        self._on_after_request_handlers = []
+        
+        # CRUD - Before
+        self._on_before_create_handlers = {}  # {resource_type: [handlers]}
+        self._on_before_read_handlers = {}    # {resource_type: [handlers]}
+        self._on_before_update_handlers = {}  # {resource_type: [handlers]}
+        self._on_before_delete_handlers = {}  # {resource_type: [handlers]}
+        self._on_before_search_handlers = {}  # {resource_type: [handlers]}
+        
+        # CRUD - After (Post-Process)
+        self._on_after_create_handlers = {}   # {resource_type: [handlers]}
+        self._on_after_read_handlers = {}     # {resource_type: [handlers]}
+        self._on_after_update_handlers = {}   # {resource_type: [handlers]}
+        self._on_after_delete_handlers = {}   # {resource_type: [handlers]}
+        self._on_after_search_handlers = {}   # {resource_type: [handlers]}
+        
         self._consent_handlers = {}  # {resource_type: [handlers]}
         self._operations = {}  # {(name, scope, resource_type): handler}
-        self._on_create_handlers = {}  # {resource_type: [handlers]}
-        self._on_update_handlers = {}  # {resource_type: [handlers]}
-        self._on_delete_handlers = {}  # {resource_type: [handlers]}
         
         # OAuth handlers
         self._oauth_set_instance_handlers = []
@@ -63,14 +73,13 @@ class FhirDecorators:
         """
         Decorator to customize the capability statement.
         
+        Signature:
+            def handler(capability_statement: dict) -> dict:
+        
         Example:
             @fhir.on_capability_statement
             def customize_capability(capability_statement: dict) -> dict:
-                # Remove Account resource
-                capability_statement['rest'][0]['resource'] = [
-                    r for r in capability_statement['rest'][0]['resource']
-                    if r['type'] != 'Account'
-                ]
+                # Modify capability_statement
                 return capability_statement
         """
         self._capability_statement_handlers.append(func)
@@ -78,110 +87,195 @@ class FhirDecorators:
     
     # ==================== Request/Response Hooks ====================
     
-    def before_request(self, func: Callable) -> Callable:
+    def on_before_request(self, func: Callable) -> Callable:
         """
         Decorator for pre-request processing.
         
+        Signature:
+            def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
+        
         Example:
-            @fhir.before_request
+            @fhir.on_before_request
             def extract_user_context(fhir_service, fhir_request, body, timeout):
                 # Extract user and roles
-                current_user = fhir_request.Username
-                print(f"Request from: {current_user}")
+                pass
         """
-        self._before_request_handlers.append(func)
+        self._on_before_request_handlers.append(func)
         return func
     
-    def after_request(self, func: Callable) -> Callable:
+    def on_after_request(self, func: Callable) -> Callable:
         """
         Decorator for post-request processing.
         
+        Signature:
+            def handler(fhir_service: Any, fhir_request: Any, fhir_response: Any, body: dict) -> None:
+        
         Example:
-            @fhir.after_request
+            @fhir.on_after_request
             def cleanup(fhir_service, fhir_request, fhir_response, body):
                 # Clean up request-scoped state
                 pass
         """
-        self._after_request_handlers.append(func)
+        self._on_after_request_handlers.append(func)
         return func
     
-    # ==================== Read/Search Processing ====================
+    # ==================== CRUD Operations - Before ====================
     
-    def post_process_read(self, resource_type: Optional[str] = None) -> Callable:
+    def on_before_create(self, resource_type: Optional[str] = None) -> Callable:
         """
-        Decorator to post-process read operations.
+        Decorator for pre-create operations (POST).
         
-        Args:
-            resource_type: Specific resource type or None for all types
-        
-        Example:
-            @fhir.post_process_read("Patient")
-            def filter_patient(fhir_object: dict) -> bool:
-                # Hide restricted patients
-                if fhir_object.get("meta", {}).get("security"):
-                    return False
-                return True
-            
-            @fhir.post_process_read()  # All resource types
-            def log_read(fhir_object: dict) -> bool:
-                print(f"Read {fhir_object['resourceType']}")
-                return True
+        Signature:
+            def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
         """
         def decorator(func: Callable) -> Callable:
             key = resource_type or "*"
-            if key not in self._post_process_read_handlers:
-                self._post_process_read_handlers[key] = []
-            self._post_process_read_handlers[key].append(func)
+            if key not in self._on_before_create_handlers:
+                self._on_before_create_handlers[key] = []
+            self._on_before_create_handlers[key].append(func)
             return func
         return decorator
     
-    def post_process_search(self, resource_type: Optional[str] = None) -> Callable:
+    def on_before_read(self, resource_type: Optional[str] = None) -> Callable:
         """
-        Decorator to post-process search operations.
+        Decorator for pre-read operations (GET).
         
-        Args:
-            resource_type: Specific resource type or None for all types
-        
-        Example:
-            @fhir.post_process_search("Patient")
-            def filter_patient_search(rs, resource_type):
-                # Filter search results
-                rs._SetIterator(0)
-                while rs._Next():
-                    resource_id = rs._Get("ResourceId")
-                    # Apply filtering logic
+        Signature:
+            def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
         """
         def decorator(func: Callable) -> Callable:
             key = resource_type or "*"
-            if key not in self._post_process_search_handlers:
-                self._post_process_search_handlers[key] = []
-            self._post_process_search_handlers[key].append(func)
+            if key not in self._on_before_read_handlers:
+                self._on_before_read_handlers[key] = []
+            self._on_before_read_handlers[key].append(func)
+            return func
+        return decorator
+
+    def on_before_update(self, resource_type: Optional[str] = None) -> Callable:
+        """
+        Decorator for pre-update operations (PUT).
+        
+        Signature:
+            def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
+        """
+        def decorator(func: Callable) -> Callable:
+            key = resource_type or "*"
+            if key not in self._on_before_update_handlers:
+                self._on_before_update_handlers[key] = []
+            self._on_before_update_handlers[key].append(func)
+            return func
+        return decorator
+    
+    def on_before_delete(self, resource_type: Optional[str] = None) -> Callable:
+        """
+        Decorator for pre-delete operations (DELETE).
+        
+        Signature:
+            def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
+        """
+        def decorator(func: Callable) -> Callable:
+            key = resource_type or "*"
+            if key not in self._on_before_delete_handlers:
+                self._on_before_delete_handlers[key] = []
+            self._on_before_delete_handlers[key].append(func)
+            return func
+        return decorator
+
+    def on_before_search(self, resource_type: Optional[str] = None) -> Callable:
+        """
+        Decorator for pre-search operations.
+        
+        Signature:
+            def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
+        """
+        def decorator(func: Callable) -> Callable:
+            key = resource_type or "*"
+            if key not in self._on_before_search_handlers:
+                self._on_before_search_handlers[key] = []
+            self._on_before_search_handlers[key].append(func)
+            return func
+        return decorator
+
+    # ==================== CRUD Operations - After ====================
+
+    def on_after_create(self, resource_type: Optional[str] = None) -> Callable:
+        """
+        Decorator for post-create operations.
+        
+        Signature:
+            def handler(fhir_service: Any, fhir_request: Any, fhir_response: Any, body: dict) -> None:
+        """
+        def decorator(func: Callable) -> Callable:
+            key = resource_type or "*"
+            if key not in self._on_after_create_handlers:
+                self._on_after_create_handlers[key] = []
+            self._on_after_create_handlers[key].append(func)
+            return func
+        return decorator
+
+    def on_after_read(self, resource_type: Optional[str] = None) -> Callable:
+        """
+        Decorator for post-read operations (PostProcessRead).
+        
+        Signature:
+            def handler(resource: dict) -> bool:
+        """
+        def decorator(func: Callable) -> Callable:
+            key = resource_type or "*"
+            if key not in self._on_after_read_handlers:
+                self._on_after_read_handlers[key] = []
+            self._on_after_read_handlers[key].append(func)
+            return func
+        return decorator
+    
+    def on_after_update(self, resource_type: Optional[str] = None) -> Callable:
+        """
+        Decorator for post-update operations.
+        
+        Signature:
+            def handler(fhir_service: Any, fhir_request: Any, fhir_response: Any, body: dict) -> None:
+        """
+        def decorator(func: Callable) -> Callable:
+            key = resource_type or "*"
+            if key not in self._on_after_update_handlers:
+                self._on_after_update_handlers[key] = []
+            self._on_after_update_handlers[key].append(func)
+            return func
+        return decorator
+        
+    def on_after_delete(self, resource_type: Optional[str] = None) -> Callable:
+        """
+        Decorator for post-delete operations.
+        
+        Signature:
+            def handler(fhir_service: Any, fhir_request: Any, fhir_response: Any, body: dict) -> None:
+        """
+        def decorator(func: Callable) -> Callable:
+            key = resource_type or "*"
+            if key not in self._on_after_delete_handlers:
+                self._on_after_delete_handlers[key] = []
+            self._on_after_delete_handlers[key].append(func)
+            return func
+        return decorator
+
+    def on_after_search(self, resource_type: Optional[str] = None) -> Callable:
+        """
+        Decorator for post-search operations (PostProcessSearch).
+        
+        Signature:
+            def handler(rs: Any, resource_type: str) -> None:
+        """
+        def decorator(func: Callable) -> Callable:
+            key = resource_type or "*"
+            if key not in self._on_after_search_handlers:
+                self._on_after_search_handlers[key] = []
+            self._on_after_search_handlers[key].append(func)
             return func
         return decorator
     
     # ==================== Convenience Decorators ====================
     
-    def on_read(self, resource_type: Optional[str] = None) -> Callable:
-        """
-        Convenience decorator - alias for post_process_read.
-        
-        Example:
-            @fhir.on_read("Patient")
-            def handle_patient_read(fhir_object: dict) -> bool:
-                return True
-        """
-        return self.post_process_read(resource_type)
-    
-    def on_search(self, resource_type: Optional[str] = None) -> Callable:
-        """
-        Convenience decorator - alias for post_process_search.
-        
-        Example:
-            @fhir.on_search("Patient")
-            def handle_patient_search(rs, resource_type):
-                pass
-        """
-        return self.post_process_search(resource_type)
+    # Aliases removed as naming convention is now standard
     
     # ==================== Consent ====================
     
@@ -209,61 +303,9 @@ class FhirDecorators:
         return decorator
     
     # ==================== CRUD Operations ====================
-    
-    def on_create(self, resource_type: Optional[str] = None) -> Callable:
-        """
-        Decorator for create operations (POST).
-        
-        Example:
-            @fhir.on_create("Patient")
-            def validate_patient_creation(fhir_service, fhir_request, body, timeout):
-                # Validate patient data before creation
-                pass
-        """
-        def decorator(func: Callable) -> Callable:
-            key = resource_type or "*"
-            if key not in self._on_create_handlers:
-                self._on_create_handlers[key] = []
-            self._on_create_handlers[key].append(func)
-            return func
-        return decorator
-    
-    def on_update(self, resource_type: Optional[str] = None) -> Callable:
-        """
-        Decorator for update operations (PUT).
-        
-        Example:
-            @fhir.on_update("Patient")
-            def audit_patient_update(fhir_service, fhir_request, body, timeout):
-                # Audit patient updates
-                pass
-        """
-        def decorator(func: Callable) -> Callable:
-            key = resource_type or "*"
-            if key not in self._on_update_handlers:
-                self._on_update_handlers[key] = []
-            self._on_update_handlers[key].append(func)
-            return func
-        return decorator
-    
-    def on_delete(self, resource_type: Optional[str] = None) -> Callable:
-        """
-        Decorator for delete operations (DELETE).
-        
-        Example:
-            @fhir.on_delete("Patient")
-            def prevent_patient_deletion(fhir_service, fhir_request, body, timeout):
-                # Check if deletion is allowed
-                pass
-        """
-        def decorator(func: Callable) -> Callable:
-            key = resource_type or "*"
-            if key not in self._on_delete_handlers:
-                self._on_delete_handlers[key] = []
-            self._on_delete_handlers[key].append(func)
-            return func
-        return decorator
-    
+     
+    # Removed old operations placeholders  
+      
     # ==================== Custom Operations ====================
     
     def operation(
@@ -299,30 +341,44 @@ class FhirDecorators:
         """Get all registered capability statement handlers."""
         return self._capability_statement_handlers.copy()
     
-    def get_before_request_handlers(self) -> List[Callable]:
+    def get_on_before_request_handlers(self) -> List[Callable]:
         """Get all registered before_request handlers."""
-        return self._before_request_handlers.copy()
+        return self._on_before_request_handlers.copy()
     
-    def get_after_request_handlers(self) -> List[Callable]:
+    def get_on_after_request_handlers(self) -> List[Callable]:
         """Get all registered after_request handlers."""
-        return self._after_request_handlers.copy()
+        return self._on_after_request_handlers.copy()
     
-    def get_post_process_read_handlers(self, resource_type: str) -> List[Callable]:
+    def get_on_before_read_handlers(self, resource_type: str) -> List[Callable]:
+        """Get on_before_read handlers for a specific resource type."""
+        handlers = []
+        handlers.extend(self._on_before_read_handlers.get("*", []))
+        handlers.extend(self._on_before_read_handlers.get(resource_type, []))
+        return handlers
+
+    def get_on_after_read_handlers(self, resource_type: str) -> List[Callable]:
         """Get post_process_read handlers for a specific resource type."""
         handlers = []
         # Add wildcard handlers
-        handlers.extend(self._post_process_read_handlers.get("*", []))
+        handlers.extend(self._on_after_read_handlers.get("*", []))
         # Add type-specific handlers
-        handlers.extend(self._post_process_read_handlers.get(resource_type, []))
+        handlers.extend(self._on_after_read_handlers.get(resource_type, []))
+        return handlers
+
+    def get_on_before_search_handlers(self, resource_type: str) -> List[Callable]:
+        """Get on_before_search handlers for a specific resource type."""
+        handlers = []
+        handlers.extend(self._on_before_search_handlers.get("*", []))
+        handlers.extend(self._on_before_search_handlers.get(resource_type, []))
         return handlers
     
-    def get_post_process_search_handlers(self, resource_type: str) -> List[Callable]:
+    def get_on_after_search_handlers(self, resource_type: str) -> List[Callable]:
         """Get post_process_search handlers for a specific resource type."""
         handlers = []
         # Add wildcard handlers
-        handlers.extend(self._post_process_search_handlers.get("*", []))
+        handlers.extend(self._on_after_search_handlers.get("*", []))
         # Add type-specific handlers
-        handlers.extend(self._post_process_search_handlers.get(resource_type, []))
+        handlers.extend(self._on_after_search_handlers.get(resource_type, []))
         return handlers
     
     def get_consent_handlers(self, resource_type: str) -> List[Callable]:
@@ -357,25 +413,46 @@ class FhirDecorators:
         """Get all registered operations."""
         return self._operations.copy()
     
-    def get_create_handlers(self, resource_type: str) -> List[Callable]:
+    def get_on_before_create_handlers(self, resource_type: str) -> List[Callable]:
         """Get on_create handlers for a specific resource type."""
         handlers = []
-        handlers.extend(self._on_create_handlers.get("*", []))
-        handlers.extend(self._on_create_handlers.get(resource_type, []))
+        handlers.extend(self._on_before_create_handlers.get("*", []))
+        handlers.extend(self._on_before_create_handlers.get(resource_type, []))
         return handlers
     
-    def get_update_handlers(self, resource_type: str) -> List[Callable]:
+    def get_on_after_create_handlers(self, resource_type: str) -> List[Callable]:
+        """Get on_after_create handlers for a specific resource type."""
+        handlers = []
+        handlers.extend(self._on_after_create_handlers.get("*", []))
+        handlers.extend(self._on_after_create_handlers.get(resource_type, []))
+        return handlers
+    
+    def get_on_before_update_handlers(self, resource_type: str) -> List[Callable]:
         """Get on_update handlers for a specific resource type."""
         handlers = []
-        handlers.extend(self._on_update_handlers.get("*", []))
-        handlers.extend(self._on_update_handlers.get(resource_type, []))
+        handlers.extend(self._on_before_update_handlers.get("*", []))
+        handlers.extend(self._on_before_update_handlers.get(resource_type, []))
+        return handlers
+
+    def get_on_after_update_handlers(self, resource_type: str) -> List[Callable]:
+        """Get on_after_update handlers for a specific resource type."""
+        handlers = []
+        handlers.extend(self._on_after_update_handlers.get("*", []))
+        handlers.extend(self._on_after_update_handlers.get(resource_type, []))
         return handlers
     
-    def get_delete_handlers(self, resource_type: str) -> List[Callable]:
+    def get_on_before_delete_handlers(self, resource_type: str) -> List[Callable]:
         """Get on_delete handlers for a specific resource type."""
         handlers = []
-        handlers.extend(self._on_delete_handlers.get("*", []))
-        handlers.extend(self._on_delete_handlers.get(resource_type, []))
+        handlers.extend(self._on_before_delete_handlers.get("*", []))
+        handlers.extend(self._on_before_delete_handlers.get(resource_type, []))
+        return handlers
+
+    def get_on_after_delete_handlers(self, resource_type: str) -> List[Callable]:
+        """Get on_after_delete handlers for a specific resource type."""
+        handlers = []
+        handlers.extend(self._on_after_delete_handlers.get("*", []))
+        handlers.extend(self._on_after_delete_handlers.get(resource_type, []))
         return handlers
 
     # ==================== OAuth Decorators ====================
@@ -593,19 +670,22 @@ class FhirDecorators:
     
     # ==================== Validation Decorators ====================
     
-    def validate_resource(self, resource_type: str = "*") -> Callable:
+    def on_validate_resource(self, resource_type: str = "*") -> Callable:
         """
         Decorator for custom resource validation.
+        
+        Signature:
+            def handler(resource: dict, is_in_transaction: bool) -> None:
         
         Args:
             resource_type: FHIR resource type (e.g., "Patient") or "*" for all types
         
         Example:
-            @fhir.validate_resource("Patient")
-            def validate_patient(resource_object, is_in_transaction=False):
+            @fhir.on_validate_resource("Patient")
+            def validate_patient(resource, is_in_transaction):
                 # Custom validation logic
                 # Raise exception if validation fails
-                if not resource_object.get("name"):
+                if not resource.get("name"):
                     raise ValueError("Patient name is required")
         """
         def decorator(func: Callable) -> Callable:
@@ -615,15 +695,18 @@ class FhirDecorators:
             return func
         return decorator
     
-    def validate_bundle(self, func: Callable) -> Callable:
+    def on_validate_bundle(self, func: Callable) -> Callable:
         """
         Decorator for custom bundle validation.
         
+        Signature:
+            def handler(resource: dict, fhir_version: str) -> None:
+        
         Example:
-            @fhir.validate_bundle
-            def validate_bundle(resource_object, fhir_version):
+            @fhir.on_validate_bundle
+            def validate_bundle(resource, fhir_version):
                 # Custom bundle validation
-                if resource_object.get("type") not in ["transaction", "batch"]:
+                if resource.get("type") not in ["transaction", "batch"]:
                     raise ValueError("Invalid bundle type")
         """
         self._validate_bundle_handlers.append(func)
@@ -631,14 +714,14 @@ class FhirDecorators:
     
     # Validation getter methods
     
-    def get_validate_resource_handlers(self, resource_type: str) -> List[Callable]:
+    def get_on_validate_resource_handlers(self, resource_type: str) -> List[Callable]:
         """Get validate_resource handlers for a specific resource type."""
         handlers = []
         handlers.extend(self._validate_resource_handlers.get("*", []))
         handlers.extend(self._validate_resource_handlers.get(resource_type, []))
         return handlers
     
-    def get_validate_bundle_handlers(self) -> List[Callable]:
+    def get_on_validate_bundle_handlers(self) -> List[Callable]:
         """Get validate_bundle handlers."""
         return self._validate_bundle_handlers.copy()
 

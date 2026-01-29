@@ -1,4 +1,4 @@
-from contextvars import ContextVar
+import threading
 
 try:
     from fhir_decorators import fhir
@@ -18,11 +18,13 @@ class RequestContext:
         self.last_operation = ""
 
 
-_context = ContextVar("fhir_customization_context", default=RequestContext())
+_context_local = threading.local()
 
 
 def get_context():
-    return _context.get()
+    if not hasattr(_context_local, "ctx"):
+        _context_local.ctx = RequestContext()
+    return _context_local.ctx
 
 
 BLOCKED_PREFIX = "blocked-"
@@ -37,21 +39,21 @@ def remove_account_resource(capability_statement):
     return capability_statement
 
 
-@fhir.before_request
+@fhir.on_before_request
 def capture_user_context(fhir_service, fhir_request, body, timeout):
     ctx = get_context()
     ctx.user = fhir_request.Username
     ctx.roles = fhir_request.Roles
 
 
-@fhir.after_request
+@fhir.on_after_request
 def clear_user_context(fhir_service, fhir_request, fhir_response, body):
     ctx = get_context()
     ctx.user = ""
     ctx.roles = ""
 
 
-@fhir.on_read("Patient")
+@fhir.on_after_read("Patient")
 def deny_blocked_patient_read(resource):
     resource_id = resource.get("id", "")
     if resource_id.startswith(BLOCKED_PREFIX):
@@ -59,7 +61,7 @@ def deny_blocked_patient_read(resource):
     return True
 
 
-@fhir.post_process_search("Patient")
+@fhir.on_after_search("Patient")
 def filter_blocked_patient_search(rs, resource_type):
     """
     Filter out blocked patients from search results.
@@ -73,19 +75,19 @@ def filter_blocked_patient_search(rs, resource_type):
             rs._SaveRow()
 
 
-@fhir.on_create("Patient")
+@fhir.on_before_create("Patient")
 def record_create(fhir_service, fhir_request, body, timeout):
     ctx = get_context()
     ctx.last_operation = "create"
 
 
-@fhir.on_update("Patient")
+@fhir.on_before_update("Patient")
 def record_update(fhir_service, fhir_request, body, timeout):
     ctx = get_context()
     ctx.last_operation = "update"
 
 
-@fhir.on_delete("Patient")
+@fhir.on_before_delete("Patient")
 def record_delete(fhir_service, fhir_request, body, timeout):
     ctx = get_context()
     ctx.last_operation = "delete"
@@ -151,24 +153,24 @@ def verify_system_access():
     return True
 
 
-@fhir.validate_resource("Patient")
+@fhir.on_validate_resource("Patient")
 def validate_patient_resource(resource_object, is_in_transaction=False):
     if "id" not in resource_object:
         raise ValueError("Patient must have id")
 
 
-@fhir.validate_bundle
+@fhir.on_validate_bundle
 def validate_bundle(resource_object, fhir_version):
     if resource_object.get("type") == "transaction" and not resource_object.get("entry"):
         raise ValueError("Transaction bundle must have entries")
 
 
-@fhir.validate_resource("Observation")
+@fhir.on_validate_resource("Observation")
 def validate_observation(resource_object, is_in_transaction=False):
     raise ValueError("Custom Error Observation")
 
 
-@fhir.validate_resource("Organization")
+@fhir.on_validate_resource("Organization")
 def fail_validation_hard(resource_object, is_in_transaction=False):
     # This raises a generic exception, expecting 500 Internal Server Error
     # or a wrapped error handling depending on Helper.cls

@@ -17,8 +17,8 @@ def reset_context():
 @pytest.mark.unit
 def test_before_after_request_updates_context(fake_fhir_request):
     request_doctor = fake_fhir_request(username="alice", roles="doctor")
-    before_handlers = cd.fhir.get_before_request_handlers()
-    after_handlers = cd.fhir.get_after_request_handlers()
+    before_handlers = cd.fhir.get_on_before_request_handlers()
+    after_handlers = cd.fhir.get_on_after_request_handlers()
     assert before_handlers
     assert after_handlers
 
@@ -38,33 +38,33 @@ def test_before_after_request_updates_context(fake_fhir_request):
 @pytest.mark.unit
 def test_read_handler_allows_doctor(fake_fhir_request):
     request_doctor = fake_fhir_request(username="alice", roles="doctor")
-    for handler in cd.fhir.get_before_request_handlers():
+    for handler in cd.fhir.get_on_before_request_handlers():
         handler(Mock(), request_doctor, None, None)
 
-    results = [handler({"resourceType": "Patient"}) for handler in cd.fhir.get_post_process_read_handlers("Patient")]
+    results = [handler({"resourceType": "Patient"}) for handler in cd.fhir.get_on_after_read_handlers("Patient")]
     assert results == [True]
 
 
 @pytest.mark.unit
 def test_read_handler_denies_guest(fake_fhir_request):
     request_guest = fake_fhir_request(username="bob", roles="guest")
-    for handler in cd.fhir.get_before_request_handlers():
+    for handler in cd.fhir.get_on_before_request_handlers():
         handler(Mock(), request_guest, None, None)
 
-    results = [handler({"resourceType": "Patient"}) for handler in cd.fhir.get_post_process_read_handlers("Patient")]
+    results = [handler({"resourceType": "Patient"}) for handler in cd.fhir.get_on_after_read_handlers("Patient")]
     assert results == [False]
 
 
 @pytest.mark.unit
 def test_search_handler_registered():
-    handlers = cd.fhir.get_post_process_search_handlers("Patient")
+    handlers = cd.fhir.get_on_after_search_handlers("Patient")
     assert handlers
     assert handlers[0](None, "Patient") is True
 
 
 @pytest.mark.unit
 def test_update_handler_requires_name():
-    handlers = cd.fhir.get_update_handlers("Patient")
+    handlers = cd.fhir.get_on_before_update_handlers("Patient")
     assert handlers
 
     with pytest.raises(ValueError, match="Missing body"):

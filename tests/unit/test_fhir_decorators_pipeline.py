@@ -18,27 +18,27 @@ def test_handler_pipeline_runs_in_expected_order():
     fhir = FhirDecorators()
     state = {"calls": []}
 
-    @fhir.before_request
+    @fhir.on_before_request
     def before_handler(service, request, body, timeout):
         state["calls"].append(("before", request.Username))
 
-    @fhir.post_process_read("Patient")
+    @fhir.on_after_read("Patient")
     def read_handler(resource):
         state["calls"].append(("read", resource["id"]))
         return True
 
-    @fhir.after_request
+    @fhir.on_after_request
     def after_handler(service, request, response, body):
         state["calls"].append(("after", request.Username))
 
     request = DummyRequest("alice", "doctor")
-    for handler in fhir.get_before_request_handlers():
+    for handler in fhir.get_on_before_request_handlers():
         handler(DummyService(), request, None, None)
 
     resource = {"resourceType": "Patient", "id": "1"}
-    results = [handler(resource) for handler in fhir.get_post_process_read_handlers("Patient")]
+    results = [handler(resource) for handler in fhir.get_on_after_read_handlers("Patient")]
 
-    for handler in fhir.get_after_request_handlers():
+    for handler in fhir.get_on_after_request_handlers():
         handler(DummyService(), request, None, None)
 
     assert results == [True]

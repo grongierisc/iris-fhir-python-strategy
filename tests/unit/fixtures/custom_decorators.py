@@ -11,29 +11,29 @@ context = RequestContext()
 fhir = FhirDecorators()
 
 
-@fhir.before_request
+@fhir.on_before_request
 def set_user_context(fhir_service, fhir_request, body, timeout):
     context.user = fhir_request.Username
     context.roles = fhir_request.Roles
 
 
-@fhir.after_request
+@fhir.on_after_request
 def clear_user_context(fhir_service, fhir_request, fhir_response, body):
     context.user = ""
     context.roles = ""
 
 
-@fhir.on_read("Patient")
+@fhir.on_after_read("Patient")
 def allow_patient_read(resource):
     return "doctor" in context.roles
 
 
-@fhir.on_search("Patient")
+@fhir.on_after_search("Patient")
 def allow_patient_search(rs, resource_type):
     return True
 
 
-@fhir.on_update("Patient")
+@fhir.on_before_update("Patient")
 def validate_patient_update(fhir_service, fhir_request, body, timeout):
     if body is None:
         raise ValueError("Missing body")

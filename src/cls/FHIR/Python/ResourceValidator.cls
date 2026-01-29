@@ -44,7 +44,7 @@ Method ValidateResource(
 		set resourceJson = pResourceObject.%ToJSON()
 		set resourcePyObj = jsonLib.loads(resourceJson)
 
-		set handlers = registry."get_validate_resource_handlers"(resourceType)
+		set handlers = registry."get_on_validate_resource_handlers"(resourceType)
 
 		if handlers."__len__"() = 0 {
 			do ##super(pResourceObject, pIsInTransaction)
