@@ -7,7 +7,7 @@ Simply import fhir and decorate your functions.
 
 import json
 import threading
-
+from typing import Any, Dict, List, Optional
 
 try:
     from fhir_decorators import fhir
@@ -52,7 +52,7 @@ def set_request_context(ctx):
 # ==================== Capability Statement ====================
 
 @fhir.on_capability_statement
-def customize_capability_statement(capability_statement):
+def customize_capability_statement(capability_statement: Dict[str, Any]) -> Dict[str, Any]:
     """
     Remove Account resource from capability statement.
     """
@@ -66,7 +66,7 @@ def customize_capability_statement(capability_statement):
 # ==================== Request/Response Hooks ====================
 
 @fhir.on_before_request
-def extract_user_context(fhir_service, fhir_request, body, timeout):
+def extract_user_context(fhir_service: Any, fhir_request: Any, body: Dict[str, Any], timeout: int):
     """
     Extract user and roles for consent evaluation.
     """
@@ -88,7 +88,7 @@ def extract_user_context(fhir_service, fhir_request, body, timeout):
 
 
 @fhir.on_after_request
-def cleanup_context(fhir_service, fhir_request, fhir_response, body):
+def cleanup_context(fhir_service: Any, fhir_request: Any, fhir_response: Any, body: Dict[str, Any]):
     """
     Clear request-scoped state.
     """
@@ -98,7 +98,7 @@ def cleanup_context(fhir_service, fhir_request, fhir_response, body):
 # ==================== Read/Search Processing ====================
 
 @fhir.on_after_read("Patient")
-def filter_patient_read(fhir_object):
+def filter_patient_read(fhir_object: Dict[str, Any]) -> bool:
     """
     Apply consent rules to Patient reads.
     Return False to hide the resource (returns 404).
@@ -109,7 +109,7 @@ def filter_patient_read(fhir_object):
 
 
 @fhir.on_after_read()  # All resource types
-def log_all_reads(fhir_object):
+def log_all_reads(fhir_object: Dict[str, Any]) -> bool:
     """
     Log all read operations.
     """
@@ -118,7 +118,7 @@ def log_all_reads(fhir_object):
 
 
 @fhir.on_after_search("Patient")
-def filter_patient_search(rs, resource_type):
+def filter_patient_search(rs: Any, resource_type: str):
     """
     Filter Patient search results based on consent.
     """
@@ -139,7 +139,7 @@ def filter_patient_search(rs, resource_type):
 # ==================== Consent Rules ====================
 
 @fhir.consent("Patient")
-def patient_consent_rules(fhir_object, user_context):
+def patient_consent_rules(fhir_object: Dict[str, Any], user_context: Any) -> bool:
     """
     Check if user has consent to access Patient resource.
     """
@@ -155,7 +155,7 @@ def patient_consent_rules(fhir_object, user_context):
 # ==================== CRUD Operations ====================
 
 @fhir.on_before_create("Patient")
-def validate_patient_creation(fhir_service, fhir_request, body, timeout):
+def validate_patient_creation(fhir_service: Any, fhir_request: Any, body: Dict[str, Any], timeout: int):
     """
     Validate Patient resource before creation.
     """
@@ -164,7 +164,7 @@ def validate_patient_creation(fhir_service, fhir_request, body, timeout):
 
 
 @fhir.on_before_update("Patient")
-def audit_patient_update(fhir_service, fhir_request, body, timeout):
+def audit_patient_update(fhir_service: Any, fhir_request: Any, body: Dict[str, Any], timeout: int):
     """
     Audit Patient updates.
     """
@@ -175,8 +175,8 @@ def audit_patient_update(fhir_service, fhir_request, body, timeout):
 # ==================== Custom Operations ====================
 
 @fhir.operation("diff", scope="Instance", resource_type="Patient")
-def patient_diff_operation(operation_name, operation_scope, body,
-                          fhir_service, fhir_request, fhir_response):
+def patient_diff_operation(operation_name: str, operation_scope: str, body: Dict[str, Any],
+                          fhir_service: Any, fhir_request: Any, fhir_response: Any):
     """
     Custom $diff operation to compare two Patient resources.
     """
@@ -203,8 +203,8 @@ def patient_diff_operation(operation_name, operation_scope, body,
 
 
 @fhir.operation("validate", scope="Type", resource_type="Patient")
-def validate_patient_operation(operation_name, operation_scope, body,
-                               fhir_service, fhir_request, fhir_response):
+def validate_patient_operation(operation_name: str, operation_scope: str, body: Dict[str, Any],
+                               fhir_service: Any, fhir_request: Any, fhir_response: Any):
     """
     Custom $validate operation for Patient resources.
     """
@@ -223,7 +223,7 @@ def validate_patient_operation(operation_name, operation_scope, body,
 
 # ==================== Helper Functions ====================
 
-def get_security(scope):
+def get_security(scope: str) -> List[str]:
     """Extract security labels from Permission resources."""
     ctx = get_request_context()
     security = []
@@ -241,7 +241,7 @@ def get_security(scope):
     return security
 
 
-def check_consent(resource_dict):
+def check_consent(resource_dict: Dict[str, Any]) -> bool:
     """
     Check if user has consent to access resource.
     Returns False if access should be denied.
@@ -258,7 +258,7 @@ def check_consent(resource_dict):
 # ==================== OAuth Decorators ====================
 
 @fhir.oauth_set_instance
-def setup_oauth_token(token_string, oauth_client, base_url, username):
+def setup_oauth_token(token_string: str, oauth_client: Any, base_url: str, username: str):
     """Setup OAuth token instance."""
     ctx = get_request_context()
     ctx.token_string = token_string
@@ -269,7 +269,7 @@ def setup_oauth_token(token_string, oauth_client, base_url, username):
 
 
 @fhir.oauth_get_introspection
-def get_token_introspection():
+def get_token_introspection() -> Dict[str, Any]:
     """
     Get OAuth token introspection.
     Returns JWT object from introspection call.
@@ -287,7 +287,7 @@ def get_token_introspection():
 
 
 @fhir.oauth_get_user_info
-def extract_user_info(basic_auth_username, basic_auth_roles):
+def extract_user_info(basic_auth_username: str, basic_auth_roles: str) -> Dict[str, Any]:
     """
     Extract user information from OAuth token.
     Returns dict with user info.
@@ -302,7 +302,7 @@ def extract_user_info(basic_auth_username, basic_auth_roles):
 
 
 @fhir.oauth_verify_resource_id("Patient")
-def verify_patient_access_by_id(resource_type, resource_id, required_privilege):
+def verify_patient_access_by_id(resource_type: str, resource_id: str, required_privilege: str) -> bool:
     """
     Verify OAuth access to a Patient by ID.
     Raises exception if access denied.
@@ -317,7 +317,7 @@ def verify_patient_access_by_id(resource_type, resource_id, required_privilege):
 
 
 @fhir.oauth_verify_resource_content("Patient")
-def verify_patient_content_access(resource_dict, required_privilege, allow_shared):
+def verify_patient_content_access(resource_dict: Dict[str, Any], required_privilege: str, allow_shared: bool) -> bool:
     """
     Verify OAuth access based on Patient resource content.
     Checks security labels, patient compartment, etc.
@@ -332,13 +332,13 @@ def verify_patient_content_access(resource_dict, required_privilege, allow_share
                     raise PermissionError("Insufficient clearance for restricted Patient data")
 
 
-def has_clearance_for_restricted():
+def has_clearance_for_restricted() -> bool:
     # Placeholder for custom authorization logic.
     return False
 
 
 @fhir.oauth_verify_delete("Patient")
-def verify_patient_deletion(resource_type, resource_id, required_privilege):
+def verify_patient_deletion(resource_type: str, resource_id: str, required_privilege: str) -> bool:
     """
     Verify OAuth access for Patient deletion.
     """
@@ -349,8 +349,8 @@ def verify_patient_deletion(resource_type, resource_id, required_privilege):
 
 
 @fhir.oauth_verify_search("Patient")
-def verify_patient_search(resource_type, compartment_type, compartment_id, 
-                          parameters, required_privilege):
+def verify_patient_search(resource_type: str, compartment_type: str, compartment_id: str, 
+                          parameters: Dict[str, Any], required_privilege: str) -> bool:
     """
     Verify OAuth access for Patient searches.
     Can restrict search parameters or compartments.
@@ -364,7 +364,7 @@ def verify_patient_search(resource_type, compartment_type, compartment_id,
 
 
 @fhir.oauth_verify_system_level
-def verify_system_access():
+def verify_system_access() -> bool:
     """
     Verify OAuth access for system-level operations.
     System-level operations require special privileges.
@@ -378,7 +378,7 @@ def verify_system_access():
 # ==================== Validation Decorators ====================
 
 @fhir.on_validate_resource("*")
-def generic_resource_validation(resource_object, is_in_transaction=False):
+def generic_resource_validation(resource_object: Dict[str, Any], is_in_transaction: bool = False):
     """
     Generic resource validation for all resource types.
     Raises exception if validation fails.
@@ -388,7 +388,7 @@ def generic_resource_validation(resource_object, is_in_transaction=False):
         raise ValueError("Resource must have an 'id' field")
 
 @fhir.on_validate_resource("Patient")
-def validate_patient_resource(resource_object, is_in_transaction=False):
+def validate_patient_resource(resource_object: Dict[str, Any], is_in_transaction: bool = False):
     """
     Custom validation for Patient resources.
     Raises exception if validation fails.

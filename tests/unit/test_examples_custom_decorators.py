@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from typing import Any, Callable, Generator
 from unittest.mock import Mock
 
 import pytest
@@ -7,14 +8,14 @@ from examples import custom_decorators as ex
 
 
 @pytest.fixture(autouse=True)
-def reset_context():
+def reset_context() -> Generator[None, None, None]:
     ex.set_request_context(ex.RequestContext())
     yield
     ex.set_request_context(ex.RequestContext())
 
 
 @pytest.mark.unit
-def test_extract_and_cleanup_context(fake_fhir_request):
+def test_extract_and_cleanup_context(fake_fhir_request: Callable[..., SimpleNamespace]):
     request = fake_fhir_request(username="alice", roles="doctor")
 
     ex.extract_user_context(Mock(), request, None, None)

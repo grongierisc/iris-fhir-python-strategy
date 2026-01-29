@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.mark.e2e
-def test_fhir_metadata_via_container(fhir_base_url):
+def test_fhir_metadata_via_container(fhir_base_url: str):
     metadata_url = f"{fhir_base_url}/fhir/r4/metadata"
 
     response = requests.get(metadata_url, headers={"Accept": "application/fhir+json"})
@@ -21,7 +21,7 @@ def test_fhir_metadata_via_container(fhir_base_url):
     assert response_json.get("resourceType") == "CapabilityStatement"
 
 @pytest.mark.e2e
-def test_fhir_metadata_missing_account_resource(fhir_base_url):
+def test_fhir_metadata_missing_account_resource(fhir_base_url: str):
     metadata_url = f"{fhir_base_url}/fhir/r4/metadata"
 
     response = requests.get(metadata_url, headers={"Accept": "application/fhir+json"})
@@ -38,7 +38,7 @@ def test_fhir_metadata_missing_account_resource(fhir_base_url):
 
 
 @pytest.mark.e2e
-def test_fhir_read_patient_by_id(fhir_base_url):
+def test_fhir_read_patient_by_id(fhir_base_url: str):
     patient_id = f"e2e-{uuid.uuid4()}"
     create_url = f"{fhir_base_url}/fhir/r4/Patient/{patient_id}"
     patient = {

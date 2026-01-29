@@ -1,17 +1,18 @@
 import time
 from pathlib import Path
+from typing import Any, Generator, Optional
 
 import pytest
 
 
-def _find_running_container(client, image_name):
+def _find_running_container(client: Any, image_name: str) -> Optional[Any]:
     for container in client.containers.list():
         if image_name in (container.image.tags or []):
             return container
     return None
 
 
-def _get_host_port(container, container_port):
+def _get_host_port(container: Any, container_port: int) -> Optional[str]:
     ports = container.attrs.get("NetworkSettings", {}).get("Ports", {})
     binding = ports.get(f"{container_port}/tcp")
     if not binding:
@@ -19,7 +20,7 @@ def _get_host_port(container, container_port):
     return binding[0].get("HostPort")
 
 
-def _run_restart_script(container):
+def _run_restart_script(container: Any) -> None:
     result = container.exec_run(
         ["/bin/sh", "-c", "iris session iris < /irisdev/app/iris.script.restart.fhir"],
         stdout=True,
@@ -29,13 +30,13 @@ def _run_restart_script(container):
     if result.exit_code != 0:
         raise RuntimeError(result.output.decode("utf-8", errors="replace"))
 
-def _container_has_env(container, key, value):
+def _container_has_env(container: Any, key: str, value: str) -> bool:
     env_list = container.attrs.get("Config", {}).get("Env", [])
     return f"{key}={value}" in env_list
 
 
 @pytest.fixture(scope="session")
-def fhir_base_url():
+def fhir_base_url() -> Generator[str, None, None]:
     docker = pytest.importorskip("docker")
     client = docker.from_env()
 

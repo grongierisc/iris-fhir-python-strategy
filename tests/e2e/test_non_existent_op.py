@@ -2,7 +2,7 @@ import pytest
 import requests
 
 @pytest.mark.e2e
-def test_non_existent_operation_returns_400(fhir_base_url):
+def test_non_existent_operation_returns_400(fhir_base_url: str):
     """
     Verify that calling a non-existent operation returns a 400 Bad Request
     instead of 200 OK.

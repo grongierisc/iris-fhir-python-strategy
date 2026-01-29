@@ -1,4 +1,5 @@
 import threading
+from typing import Any, Dict, List, Optional
 
 try:
     from fhir_decorators import fhir
@@ -31,7 +32,7 @@ BLOCKED_PREFIX = "blocked-"
 
 
 @fhir.on_capability_statement
-def remove_account_resource(capability_statement):
+def remove_account_resource(capability_statement: Dict[str, Any]) -> Dict[str, Any]:
     capability_statement["rest"][0]["resource"] = [
         resource for resource in capability_statement["rest"][0]["resource"]
         if resource["type"] != "Account"
@@ -40,21 +41,21 @@ def remove_account_resource(capability_statement):
 
 
 @fhir.on_before_request
-def capture_user_context(fhir_service, fhir_request, body, timeout):
+def capture_user_context(fhir_service: Any, fhir_request: Any, body: Dict[str, Any], timeout: int):
     ctx = get_context()
     ctx.user = fhir_request.Username
     ctx.roles = fhir_request.Roles
 
 
 @fhir.on_after_request
-def clear_user_context(fhir_service, fhir_request, fhir_response, body):
+def clear_user_context(fhir_service: Any, fhir_request: Any, fhir_response: Any, body: Dict[str, Any]):
     ctx = get_context()
     ctx.user = ""
     ctx.roles = ""
 
 
 @fhir.on_before_create("Observation")
-def enrich_observation(service, request, body, timeout):
+def enrich_observation(service: Any, request: Any, body: Dict[str, Any], timeout: int):
     """
     Automatically add a tag to all new Observations.
     """
@@ -67,7 +68,7 @@ def enrich_observation(service, request, body, timeout):
     })
 
 @fhir.on_after_read("Patient")
-def deny_blocked_patient_read(resource):
+def deny_blocked_patient_read(resource: Dict[str, Any]) -> bool:
     resource_id = resource.get("id", "")
     if resource_id.startswith(BLOCKED_PREFIX):
         return False
@@ -85,7 +86,7 @@ def deny_blocked_patient_read(resource):
 
 
 @fhir.consent("Patient")
-def consent_check(resource):
+def consent_check(resource: Dict[str, Any]) -> bool:
     """
     Consent check.
     """
@@ -97,7 +98,7 @@ def consent_check(resource):
 
 
 @fhir.on_after_search("Patient")
-def filter_blocked_patient_search(rs, resource_type):
+def filter_blocked_patient_search(rs: Any, resource_type: str):
     """
     Filter out blocked patients from search results.
     """
@@ -111,26 +112,26 @@ def filter_blocked_patient_search(rs, resource_type):
 
 
 @fhir.on_before_create("Patient")
-def record_create(fhir_service, fhir_request, body, timeout):
+def record_create(fhir_service: Any, fhir_request: Any, body: Dict[str, Any], timeout: int):
     ctx = get_context()
     ctx.last_operation = "create"
 
 
 @fhir.on_before_update("Patient")
-def record_update(fhir_service, fhir_request, body, timeout):
+def record_update(fhir_service: Any, fhir_request: Any, body: Dict[str, Any], timeout: int):
     ctx = get_context()
     ctx.last_operation = "update"
 
 
 @fhir.on_before_delete("Patient")
-def record_delete(fhir_service, fhir_request, body, timeout):
+def record_delete(fhir_service: Any, fhir_request: Any, body: Dict[str, Any], timeout: int):
     ctx = get_context()
     ctx.last_operation = "delete"
 
 
 @fhir.operation("echo", scope="Type", resource_type="Patient")
-def echo_operation(operation_name, operation_scope, body,
-                   fhir_service, fhir_request, fhir_response):
+def echo_operation(operation_name: str, operation_scope: str, body: Dict[str, Any],
+                   fhir_service: Any, fhir_request: Any, fhir_response: Any):
     fhir_response.Json = {
         "resourceType": "Parameters",
         "parameter": [
@@ -142,54 +143,54 @@ def echo_operation(operation_name, operation_scope, body,
 
 
 @fhir.oauth_set_instance
-def set_oauth_instance(token_string, oauth_client, base_url, username):
+def set_oauth_instance(token_string: str, oauth_client: Any, base_url: str, username: str):
     ctx = get_context()
     ctx.user = username
 
 
 @fhir.oauth_get_introspection
-def get_introspection():
+def get_introspection() -> Dict[str, Any]:
     return {"active": True, "scope": "patient/*.read"}
 
 
 @fhir.oauth_get_user_info
-def get_user_info(basic_auth_username, basic_auth_roles):
+def get_user_info(basic_auth_username: str, basic_auth_roles: str) -> Dict[str, Any]:
     return {"Username": basic_auth_username, "Roles": basic_auth_roles}
 
 
 @fhir.oauth_verify_resource_id("Patient")
-def verify_patient_id_access(resource_type, resource_id, required_privilege):
+def verify_patient_id_access(resource_type: str, resource_id: str, required_privilege: str) -> bool:
     return True
 
 
 @fhir.oauth_verify_resource_content("Patient")
-def verify_patient_content_access(resource_dict, required_privilege, allow_shared):
+def verify_patient_content_access(resource_dict: Dict[str, Any], required_privilege: str, allow_shared: bool) -> bool:
     return True
 
 
 @fhir.oauth_verify_history("Patient")
-def verify_patient_history(resource_type, resource_dict, required_privilege):
+def verify_patient_history(resource_type: str, resource_dict: Dict[str, Any], required_privilege: str) -> bool:
     return True
 
 
 @fhir.oauth_verify_delete("Patient")
-def verify_patient_delete(resource_type, resource_id, required_privilege):
+def verify_patient_delete(resource_type: str, resource_id: str, required_privilege: str) -> bool:
     return True
 
 
 @fhir.oauth_verify_search("Patient")
-def verify_patient_search(resource_type, compartment_type, compartment_id,
-                          parameters, required_privilege):
+def verify_patient_search(resource_type: str, compartment_type: str, compartment_id: str,
+                          parameters: Dict[str, Any], required_privilege: str) -> bool:
     return True
 
 
 @fhir.oauth_verify_system_level
-def verify_system_access():
+def verify_system_access() -> bool:
     return True
 
 
 @fhir.on_validate_resource("Patient")
-def validate_patient_resource(resource_object, is_in_transaction=False):
+def validate_patient_resource(resource_object: Dict[str, Any], is_in_transaction: bool = False):
     if "id" not in resource_object:
         raise ValueError("Patient must have id")
     
@@ -200,13 +201,13 @@ def validate_patient_resource(resource_object, is_in_transaction=False):
 
 
 @fhir.on_validate_bundle
-def validate_bundle(resource_object, fhir_version):
+def validate_bundle(resource_object: Dict[str, Any], fhir_version: str):
     if resource_object.get("type") == "transaction" and not resource_object.get("entry"):
         raise ValueError("Transaction bundle must have entries")
 
 
 @fhir.on_validate_resource("Observation")
-def validate_observation(resource_object, is_in_transaction=False):
+def validate_observation(resource_object: Dict[str, Any], is_in_transaction: bool = False):
     # Only raise error for specific testing condition
     if resource_object.get("code", {}).get("text") == "invalid":
         raise ValueError("Custom Error Observation")
@@ -217,13 +218,13 @@ def validate_observation(resource_object, is_in_transaction=False):
 
 
 @fhir.on_validate_resource("Organization")
-def fail_validation_hard(resource_object, is_in_transaction=False):
+def fail_validation_hard(resource_object: Dict[str, Any], is_in_transaction: bool = False):
     # This raises a generic exception, expecting 500 Internal Server Error
     # or a wrapped error handling depending on Helper.cls
     x = 1 / 0  # ZeroDivisionError
 
 
 @fhir.operation("crash", scope="Type", resource_type="Patient")
-def crash_operation(operation_name, operation_scope, body,
-                   fhir_service, fhir_request, fhir_response):
+def crash_operation(operation_name: str, operation_scope: str, body: Dict[str, Any],
+                   fhir_service: Any, fhir_request: Any, fhir_response: Any):
     raise Exception("Boom! explicit crash")

@@ -1,4 +1,6 @@
-def dynamic_object_from_json(data):
+from typing import Any
+
+def dynamic_object_from_json(data: str) -> Any:
     try:
         import iris
     except Exception as exc:

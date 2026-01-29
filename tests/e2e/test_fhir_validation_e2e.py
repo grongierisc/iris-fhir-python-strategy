@@ -2,7 +2,7 @@ import pytest
 import requests
 
 @pytest.mark.e2e
-def test_validate_patient_resource_custom_error(fhir_base_url):
+def test_validate_patient_resource_custom_error(fhir_base_url: str):
     """
     Test that the custom validator for Patient (defined in fhir_customization.py)
     raises an error if 'id' is missing.
@@ -47,7 +47,7 @@ def test_validate_patient_resource_custom_error(fhir_base_url):
     assert response_ok.status_code in (200, 201), response_ok.text
 
 @pytest.mark.e2e
-def test_validate_observation_custom_error(fhir_base_url):
+def test_validate_observation_custom_error(fhir_base_url: str):
     """
     Test that the custom validator for Observation raises custom error.
     """

@@ -3,7 +3,7 @@ import pytest
 
 
 @pytest.mark.e2e
-def test_capability_statement_account_removed(fhir_base_url):
+def test_capability_statement_account_removed(fhir_base_url: str):
     metadata_url = f"{fhir_base_url}/fhir/r4/metadata"
     response = requests.get(
         metadata_url,
@@ -18,7 +18,7 @@ def test_capability_statement_account_removed(fhir_base_url):
     assert "Account" not in types
 
 @pytest.mark.e2e
-def test_capability_statement_includes_custom_operation(fhir_base_url):
+def test_capability_statement_includes_custom_operation(fhir_base_url: str):
     metadata_url = f"{fhir_base_url}/fhir/r4/metadata"
     response = requests.get(
         metadata_url,
@@ -46,7 +46,7 @@ def test_capability_statement_includes_custom_operation(fhir_base_url):
 
 
 @pytest.mark.e2e
-def test_blocked_patient_read_returns_404(fhir_base_url):
+def test_blocked_patient_read_returns_404(fhir_base_url: str):
     patient_id = "blocked-e2e-patient"
     create_url = f"{fhir_base_url}/fhir/r4/Patient/{patient_id}"
     patient = {
@@ -76,7 +76,7 @@ def test_blocked_patient_read_returns_404(fhir_base_url):
 
 
 @pytest.mark.e2e
-def test_allowed_patient_read_returns_200(fhir_base_url):
+def test_allowed_patient_read_returns_200(fhir_base_url: str):
     patient_id = "allowed-e2e-patient"
     create_url = f"{fhir_base_url}/fhir/r4/Patient/{patient_id}"
     patient = {
@@ -106,7 +106,7 @@ def test_allowed_patient_read_returns_200(fhir_base_url):
 
 
 @pytest.mark.e2e
-def test_custom_echo_operation(fhir_base_url):
+def test_custom_echo_operation(fhir_base_url: str):
     patient_id = "echo-e2e-patient"
     create_url = f"{fhir_base_url}/fhir/r4/Patient/{patient_id}"
     patient = {
@@ -139,7 +139,7 @@ def test_custom_echo_operation(fhir_base_url):
 
 
 @pytest.mark.e2e
-def test_validate_bundle_requires_entries(fhir_base_url):
+def test_validate_bundle_requires_entries(fhir_base_url: str):
     bundle = {"resourceType": "Bundle", "type": "transaction", "entry": []}
     op_url = f"{fhir_base_url}/fhir/r4/Bundle/$validate"
     response = requests.post(
@@ -155,7 +155,7 @@ def test_validate_bundle_requires_entries(fhir_base_url):
 
 
 @pytest.mark.e2e
-def test_search_filtering_hides_blocked_patients(fhir_base_url):
+def test_search_filtering_hides_blocked_patients(fhir_base_url: str):
     # 1. Create a blocked patient
     blocked_id = "blocked-search-1"
     requests.put(
@@ -194,7 +194,7 @@ def test_search_filtering_hides_blocked_patients(fhir_base_url):
 
 
 @pytest.mark.e2e
-def test_observation_creation_fails_custom_validation(fhir_base_url):
+def test_observation_creation_fails_custom_validation(fhir_base_url: str):
     """
     Test that creating an Observation triggers the custom validation hook
     and raises a ValueError, which results in an error response.
@@ -221,7 +221,7 @@ def test_observation_creation_fails_custom_validation(fhir_base_url):
 
 
 @pytest.mark.e2e
-def test_transaction_bundle_fails_custom_validation(fhir_base_url):
+def test_transaction_bundle_fails_custom_validation(fhir_base_url: str):
     """
     Test that posting a transaction bundle triggers on_validate_bundle.
     """
@@ -246,7 +246,7 @@ def test_transaction_bundle_fails_custom_validation(fhir_base_url):
 
 
 @pytest.mark.e2e
-def test_validation_forbidden_name(fhir_base_url):
+def test_validation_forbidden_name(fhir_base_url: str):
     """
     Test that creating a Patient with forbidden name fails.
     """
@@ -271,7 +271,7 @@ def test_validation_forbidden_name(fhir_base_url):
 
 
 @pytest.mark.e2e
-def test_enrich_observation_tag(fhir_base_url):
+def test_enrich_observation_tag(fhir_base_url: str):
     """
     Test that new observations get an auto-generated tag.
     """
@@ -307,7 +307,7 @@ def test_enrich_observation_tag(fhir_base_url):
 
 
 @pytest.mark.e2e
-def test_masking_patient_data(fhir_base_url):
+def test_masking_patient_data(fhir_base_url: str):
     """
     Test that reading 'masked-patient' returns masked data.
     """
@@ -343,7 +343,7 @@ def test_masking_patient_data(fhir_base_url):
 
 
 @pytest.mark.e2e
-def test_consent_blocking(fhir_base_url):
+def test_consent_blocking(fhir_base_url: str):
     """
     Test that @fhir.consent blocks access to patients with family name 'NoConsent'.
     """
@@ -374,7 +374,7 @@ def test_consent_blocking(fhir_base_url):
 
 
 @pytest.mark.e2e
-def test_unhandled_python_exception_returns_500(fhir_base_url):
+def test_unhandled_python_exception_returns_500(fhir_base_url: str):
     """
     Test that a generic Python exception (ZeroDivisionError) in validation
     results in a 500 error, not a crash of the whole server, and contains details.
@@ -398,7 +398,7 @@ def test_unhandled_python_exception_returns_500(fhir_base_url):
 
 
 @pytest.mark.e2e
-def test_operation_crash_handling(fhir_base_url):
+def test_operation_crash_handling(fhir_base_url: str):
     """
     Test that a custom operation raising a generic Exception return 500.
     """
