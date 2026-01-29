@@ -98,6 +98,12 @@ Method OnBeforeRequest(
 		if (specificHandlers '= ##class(%SYS.Python).None()) {
 			do ..RunHandlers(specificHandlers, pFHIRService, pFHIRRequest, body, pTimeout)
 		}
+        
+        // Update pFHIRRequest.Json if body exists and was modified
+        if (pFHIRRequest.Json '= "") && (body '= ##class(%SYS.Python).None()) {
+            do ..UpdateDynamicObject(pFHIRRequest.Json, body)
+        }
+
 	} else {
 		do ##super(pFHIRService, pFHIRRequest, pTimeout)
 	}
@@ -150,6 +156,13 @@ Method OnAfterRequest(
 			do ..RunHandlers(specificHandlers, pFHIRService, pFHIRRequest, pFHIRResponse, body)
 		}
 
+        // Update pFHIRResponse.Json if body exists and was modified
+        if (pFHIRResponse.Json '= "") && (body '= ##class(%SYS.Python).None()) {
+            do ..UpdateDynamicObject(pFHIRResponse.Json, body)
+        }
+        
+        do ##super(pFHIRService, pFHIRRequest, pFHIRResponse)
+
 	} else {
 		do ##super(pFHIRService, pFHIRRequest, pFHIRResponse)
 	}
@@ -169,12 +182,19 @@ Method PostProcessRead(pResourceObject As %DynamicObject) As %Boolean
 		
 		// Get all post_process_read handlers for this resource type
 		set handlers = ..PythonClass."get_on_after_read_handlers"(resourceType)
-		if handlers."__len__"() = 0 {
-			return ##super(pResourceObject)
-		}
 		if '..RunBooleanHandlers(handlers, body) {
 			return 0
 		}
+		
+		// Get all consent handlers for this resource type
+		set handlers = ..PythonClass."get_consent_handlers"(resourceType)
+		if '..RunBooleanHandlers(handlers, body) {
+			return 0
+		}
+        
+        // Update pResourceObject with potential modifications from Python
+        do ..UpdateDynamicObject(pResourceObject, body)
+        
 	} else {
 		return ##super(pResourceObject)
 	}

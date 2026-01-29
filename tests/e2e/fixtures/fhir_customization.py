@@ -53,11 +53,46 @@ def clear_user_context(fhir_service, fhir_request, fhir_response, body):
     ctx.roles = ""
 
 
+@fhir.on_before_create("Observation")
+def enrich_observation(service, request, body, timeout):
+    """
+    Automatically add a tag to all new Observations.
+    """
+    meta = body.setdefault("meta", {})
+    tags = meta.setdefault("tag", [])
+    tags.append({
+        "system": "http://my-hospital.org/tags",
+        "code": "auto-generated",
+        "display": "Auto Generated"
+    })
+
 @fhir.on_after_read("Patient")
 def deny_blocked_patient_read(resource):
     resource_id = resource.get("id", "")
     if resource_id.startswith(BLOCKED_PREFIX):
         return False
+    
+    # Example from README: Masking
+    # Assuming we want to mask for everyone for this test,
+    # or strictly for a specific ID to avoid breaking other tests
+    if resource_id == "masked-patient":
+        if "telecom" in resource:
+            del resource["telecom"]
+        if "birthDate" in resource:
+            resource["birthDate"] = "1900-01-01"
+            
+    return True
+
+
+@fhir.consent("Patient")
+def consent_check(resource):
+    """
+    Consent check.
+    """
+    # Block if name family is "NoConsent"
+    for name in resource.get("name", []):
+        if name.get("family") == "NoConsent":
+            return False
     return True
 
 
@@ -157,6 +192,11 @@ def verify_system_access():
 def validate_patient_resource(resource_object, is_in_transaction=False):
     if "id" not in resource_object:
         raise ValueError("Patient must have id")
+    
+    # Example from README: Check for forbidden names
+    for name in resource_object.get("name", []):
+        if name.get("family") == "Forbidden":
+            raise ValueError("This family name is not allowed")
 
 
 @fhir.on_validate_bundle
@@ -167,7 +207,13 @@ def validate_bundle(resource_object, fhir_version):
 
 @fhir.on_validate_resource("Observation")
 def validate_observation(resource_object, is_in_transaction=False):
-    raise ValueError("Custom Error Observation")
+    # Only raise error for specific testing condition
+    if resource_object.get("code", {}).get("text") == "invalid":
+        raise ValueError("Custom Error Observation")
+
+    # Check ID for forbidden keyword (for e2e testing)
+    if "forbidden" in resource_object.get("id", ""):
+        raise ValueError("This observation ID is forbidden")
 
 
 @fhir.on_validate_resource("Organization")

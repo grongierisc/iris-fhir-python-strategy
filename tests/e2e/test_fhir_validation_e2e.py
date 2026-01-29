@@ -54,20 +54,24 @@ def test_validate_observation_custom_error(fhir_base_url):
     # Observation requires 'status' and 'code' in R4.
     observation_invalid = {
         "resourceType": "Observation",
-        "id": "invalid-obs-1"
+        "id": "forbidden-obs-1",
+        "status": "final",
+        "code": {"text": "test"}
     }
     
     response = requests.put(
-        f"{fhir_base_url}/fhir/r4/Observation/invalid-obs-1",
+        f"{fhir_base_url}/fhir/r4/Observation/forbidden-obs-1",
         headers={"Content-Type": "application/fhir+json"},
         auth=("SuperUser", "SYS"),
         json=observation_invalid,
         timeout=10,
     )
     
-    # We now expect 400 Bad Request because we implemented HandlePythonException
+    # We expect 400 Bad Request because the ID contains "forbidden"
+    # and the custom logic raises ValueError("This observation ID is forbidden")
     assert response.status_code == 400, f"Expected 400, got {response.status_code} Body: {response.text}"
-    assert "Custom Error Observation" in response.text
+    assert "This observation ID is forbidden" in response.text
+
 
 
 

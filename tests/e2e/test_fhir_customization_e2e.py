@@ -202,7 +202,7 @@ def test_observation_creation_fails_custom_validation(fhir_base_url):
     obs = {
         "resourceType": "Observation",
         "status": "final",
-        "code": {"text": "test"}
+        "code": {"text": "invalid"}
     }
     
     response = requests.post(
@@ -243,6 +243,134 @@ def test_transaction_bundle_fails_custom_validation(fhir_base_url):
     outcome = response.json()
     text = outcome["issue"][0]["details"]["text"]
     assert "Transaction bundle must have entries" in text
+
+
+@pytest.mark.e2e
+def test_validation_forbidden_name(fhir_base_url):
+    """
+    Test that creating a Patient with forbidden name fails.
+    """
+    patient = {
+        "resourceType": "Patient",
+        "id": "forbidden-patient",
+        "active": True,
+        "name": [{"family": "Forbidden"}]
+    }
+    
+    response = requests.put(
+        f"{fhir_base_url}/fhir/r4/Patient/forbidden-patient",
+        json=patient,
+        headers={"Content-Type": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+    )
+    
+    assert response.status_code >= 400
+    outcome = response.json()
+    text = outcome["issue"][0]["details"]["text"]
+    assert "This family name is not allowed" in text
+
+
+@pytest.mark.e2e
+def test_enrich_observation_tag(fhir_base_url):
+    """
+    Test that new observations get an auto-generated tag.
+    """
+    obs = {
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {"text": "enrich-test"}
+    }
+    
+    # Create
+    response = requests.post(
+        f"{fhir_base_url}/fhir/r4/Observation",
+        json=obs,
+        headers={"Content-Type": "application/fhir+json", "prefer": "return=representation"},
+        auth=("SuperUser", "SYS"),
+    )
+    assert response.status_code in (200, 201)
+    created_id = response.json()["id"]
+    
+    # Read back
+    read_resp = requests.get(
+        f"{fhir_base_url}/fhir/r4/Observation/{created_id}",
+        headers={"Accept": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+    )
+    assert read_resp.status_code == 200
+    resource = read_resp.json()
+    
+    # Check tag
+    tags = resource.get("meta", {}).get("tag", [])
+    has_tag = any(t.get("code") == "auto-generated" for t in tags)
+    assert has_tag, "Observation should have auto-generated tag"
+
+
+@pytest.mark.e2e
+def test_masking_patient_data(fhir_base_url):
+    """
+    Test that reading 'masked-patient' returns masked data.
+    """
+    pid = "masked-patient"
+    patient = {
+        "resourceType": "Patient",
+        "id": pid,
+        "active": True,
+        "birthDate": "1980-01-01",
+        "telecom": [{"system": "phone", "value": "555-1234"}]
+    }
+    
+    # Put
+    requests.put(
+        f"{fhir_base_url}/fhir/r4/Patient/{pid}",
+        json=patient,
+        headers={"Content-Type": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+    )
+    
+    # Read
+    resp = requests.get(
+        f"{fhir_base_url}/fhir/r4/Patient/{pid}",
+        headers={"Accept": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    
+    # Check masking
+    assert "telecom" not in data, "Telecom should be removed"
+    assert data["birthDate"] == "1900-01-01", "BirthDate should be masked"
+
+
+@pytest.mark.e2e
+def test_consent_blocking(fhir_base_url):
+    """
+    Test that @fhir.consent blocks access to patients with family name 'NoConsent'.
+    """
+    pid = "no-consent-patient"
+    patient = {
+        "resourceType": "Patient",
+        "id": pid,
+        "active": True,
+        "name": [{"family": "NoConsent"}]
+    }
+    
+    # Put (create should work as consent check is on read)
+    create_resp = requests.put(
+        f"{fhir_base_url}/fhir/r4/Patient/{pid}",
+        json=patient,
+        headers={"Content-Type": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+    )
+    assert create_resp.status_code in (200, 201)
+    
+    # Read (should fail with 404 because consent returns False)
+    read_resp = requests.get(
+        f"{fhir_base_url}/fhir/r4/Patient/{pid}",
+        headers={"Accept": "application/fhir+json"},
+        auth=("SuperUser", "SYS"),
+    )
+    assert read_resp.status_code == 404
 
 
 @pytest.mark.e2e

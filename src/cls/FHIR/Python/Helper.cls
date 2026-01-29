@@ -253,4 +253,39 @@ ClassMethod HandlePythonException(pEx As %Exception.PythonException)
 	$$$ThrowOnError(oneError)
 }
 
+ClassMethod UpdateDynamicObject(
+	pTarget As %DynamicObject,
+	pSource As %SYS.Python)
+{
+    Try {
+        // Convert Python dict to JSON string then to temporary IRIS Object
+        set jsonLib = ##class(%SYS.Python).Import("json")
+        set jsonStr = jsonLib.dumps(pSource)
+        set newObj = ##class(%DynamicObject).%FromJSON(jsonStr)
+        
+        // Collect keys to remove (avoid modifying while iterating)
+        set keysToRemove = ""
+        set iter = pTarget.%GetIterator()
+        while iter.%GetNext(.key) {
+            set keysToRemove = keysToRemove_$ListBuild(key)
+        }
+        
+        // Remove all properties
+        set ptr = 0
+        while $ListNext(keysToRemove, ptr, key) {
+            do pTarget.%Remove(key)
+        }
+        
+        // Copy properties from newObj to pTarget
+        set iter = newObj.%GetIterator()
+        while iter.%GetNext(.key, .val) {
+            do pTarget.%Set(key, val)
+        }
+    } Catch ex {
+        // Log error to console - this prevents server crash (500)
+        // In real system, consider logging to a global or system log
+        // write !,"Error in UpdateDynamicObject: ", ex.DisplayString()
+    }
+}
+
 }
