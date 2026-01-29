@@ -150,11 +150,11 @@ Method OnAfterRequest(
 			set body = jsonLib.loads(pFHIRResponse.Json.%ToJSON())
 		}
 		
-		do ..RunHandlers(handlers, pFHIRService, pFHIRRequest, pFHIRResponse, body)
-		
 		if (specificHandlers '= ##class(%SYS.Python).None()) {
 			do ..RunHandlers(specificHandlers, pFHIRService, pFHIRRequest, pFHIRResponse, body)
 		}
+
+		do ..RunHandlers(handlers, pFHIRService, pFHIRRequest, pFHIRResponse, body)
 
         // Update pFHIRResponse.Json if body exists and was modified
         if (pFHIRResponse.Json '= "") && (body '= ##class(%SYS.Python).None()) {

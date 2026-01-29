@@ -129,7 +129,10 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
         """
         def decorator(func: Callable) -> Callable:
-            key = resource_type or "*"
+            if resource_type is None:
+                key = "__global__"
+            else:
+                key = resource_type
             if key not in self._on_before_create_handlers:
                 self._on_before_create_handlers[key] = []
             self._on_before_create_handlers[key].append(func)
@@ -144,7 +147,10 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
         """
         def decorator(func: Callable) -> Callable:
-            key = resource_type or "*"
+            if resource_type is None:
+                key = "__global__"
+            else:
+                key = resource_type
             if key not in self._on_before_read_handlers:
                 self._on_before_read_handlers[key] = []
             self._on_before_read_handlers[key].append(func)
@@ -159,7 +165,10 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
         """
         def decorator(func: Callable) -> Callable:
-            key = resource_type or "*"
+            if resource_type is None:
+                key = "__global__"
+            else:
+                key = resource_type
             if key not in self._on_before_update_handlers:
                 self._on_before_update_handlers[key] = []
             self._on_before_update_handlers[key].append(func)
@@ -174,7 +183,10 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
         """
         def decorator(func: Callable) -> Callable:
-            key = resource_type or "*"
+            if resource_type is None:
+                key = "__global__"
+            else:
+                key = resource_type
             if key not in self._on_before_delete_handlers:
                 self._on_before_delete_handlers[key] = []
             self._on_before_delete_handlers[key].append(func)
@@ -189,7 +201,10 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
         """
         def decorator(func: Callable) -> Callable:
-            key = resource_type or "*"
+            if resource_type is None:
+                key = "__global__"
+            else:
+                key = resource_type
             if key not in self._on_before_search_handlers:
                 self._on_before_search_handlers[key] = []
             self._on_before_search_handlers[key].append(func)
@@ -206,7 +221,10 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, fhir_response: Any, body: dict) -> None:
         """
         def decorator(func: Callable) -> Callable:
-            key = resource_type or "*"
+            if resource_type is None:
+                key = "__global__"
+            else:
+                key = resource_type
             if key not in self._on_after_create_handlers:
                 self._on_after_create_handlers[key] = []
             self._on_after_create_handlers[key].append(func)
@@ -221,7 +239,10 @@ class FhirDecorators:
             def handler(resource: dict) -> bool:
         """
         def decorator(func: Callable) -> Callable:
-            key = resource_type or "*"
+            if resource_type is None:
+                key = "__global__"
+            else:
+                key = resource_type
             if key not in self._on_after_read_handlers:
                 self._on_after_read_handlers[key] = []
             self._on_after_read_handlers[key].append(func)
@@ -236,7 +257,10 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, fhir_response: Any, body: dict) -> None:
         """
         def decorator(func: Callable) -> Callable:
-            key = resource_type or "*"
+            if resource_type is None:
+                key = "__global__"
+            else:
+                key = resource_type
             if key not in self._on_after_update_handlers:
                 self._on_after_update_handlers[key] = []
             self._on_after_update_handlers[key].append(func)
@@ -251,7 +275,10 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, fhir_response: Any, body: dict) -> None:
         """
         def decorator(func: Callable) -> Callable:
-            key = resource_type or "*"
+            if resource_type is None:
+                key = "__global__"
+            else:
+                key = resource_type
             if key not in self._on_after_delete_handlers:
                 self._on_after_delete_handlers[key] = []
             self._on_after_delete_handlers[key].append(func)
@@ -266,7 +293,10 @@ class FhirDecorators:
             def handler(rs: Any, resource_type: str) -> None:
         """
         def decorator(func: Callable) -> Callable:
-            key = resource_type or "*"
+            if resource_type is None:
+                key = "__global__"
+            else:
+                key = resource_type
             if key not in self._on_after_search_handlers:
                 self._on_after_search_handlers[key] = []
             self._on_after_search_handlers[key].append(func)
@@ -352,33 +382,37 @@ class FhirDecorators:
     def get_on_before_read_handlers(self, resource_type: str) -> List[Callable]:
         """Get on_before_read handlers for a specific resource type."""
         handlers = []
+        handlers.extend(self._on_before_read_handlers.get("__global__", []))
+        if resource_type != "*" and resource_type != "__global__":
+            handlers.extend(self._on_before_read_handlers.get(resource_type, []))
         handlers.extend(self._on_before_read_handlers.get("*", []))
-        handlers.extend(self._on_before_read_handlers.get(resource_type, []))
         return handlers
 
     def get_on_after_read_handlers(self, resource_type: str) -> List[Callable]:
         """Get post_process_read handlers for a specific resource type."""
         handlers = []
-        # Add wildcard handlers
+        handlers.extend(self._on_after_read_handlers.get("__global__", []))
+        if resource_type != "*" and resource_type != "__global__":
+            handlers.extend(self._on_after_read_handlers.get(resource_type, []))
         handlers.extend(self._on_after_read_handlers.get("*", []))
-        # Add type-specific handlers
-        handlers.extend(self._on_after_read_handlers.get(resource_type, []))
         return handlers
 
     def get_on_before_search_handlers(self, resource_type: str) -> List[Callable]:
         """Get on_before_search handlers for a specific resource type."""
         handlers = []
+        handlers.extend(self._on_before_search_handlers.get("__global__", []))
+        if resource_type != "*" and resource_type != "__global__":
+            handlers.extend(self._on_before_search_handlers.get(resource_type, []))
         handlers.extend(self._on_before_search_handlers.get("*", []))
-        handlers.extend(self._on_before_search_handlers.get(resource_type, []))
         return handlers
     
     def get_on_after_search_handlers(self, resource_type: str) -> List[Callable]:
         """Get post_process_search handlers for a specific resource type."""
         handlers = []
-        # Add wildcard handlers
+        handlers.extend(self._on_after_search_handlers.get("__global__", []))
+        if resource_type != "*" and resource_type != "__global__":
+            handlers.extend(self._on_after_search_handlers.get(resource_type, []))
         handlers.extend(self._on_after_search_handlers.get("*", []))
-        # Add type-specific handlers
-        handlers.extend(self._on_after_search_handlers.get(resource_type, []))
         return handlers
     
     def get_consent_handlers(self, resource_type: str) -> List[Callable]:
@@ -416,43 +450,58 @@ class FhirDecorators:
     def get_on_before_create_handlers(self, resource_type: str) -> List[Callable]:
         """Get on_create handlers for a specific resource type."""
         handlers = []
+        handlers.extend(self._on_before_create_handlers.get("__global__", []))
+        if resource_type != "*" and resource_type != "__global__":
+            handlers.extend(self._on_before_create_handlers.get(resource_type, []))
         handlers.extend(self._on_before_create_handlers.get("*", []))
-        handlers.extend(self._on_before_create_handlers.get(resource_type, []))
         return handlers
     
     def get_on_after_create_handlers(self, resource_type: str) -> List[Callable]:
         """Get on_after_create handlers for a specific resource type."""
         handlers = []
+        # Global handlers (registered with None) execute first
+        handlers.extend(self._on_after_create_handlers.get("__global__", []))
+        # Specific handlers (registered with resource_type) execute next
+        if resource_type != "*" and resource_type != "__global__":
+            handlers.extend(self._on_after_create_handlers.get(resource_type, []))
+        # Wildcard handlers (registered with "*") execute last
         handlers.extend(self._on_after_create_handlers.get("*", []))
-        handlers.extend(self._on_after_create_handlers.get(resource_type, []))
         return handlers
     
     def get_on_before_update_handlers(self, resource_type: str) -> List[Callable]:
         """Get on_update handlers for a specific resource type."""
         handlers = []
+        handlers.extend(self._on_before_update_handlers.get("__global__", []))
+        if resource_type != "*" and resource_type != "__global__":
+            handlers.extend(self._on_before_update_handlers.get(resource_type, []))
         handlers.extend(self._on_before_update_handlers.get("*", []))
-        handlers.extend(self._on_before_update_handlers.get(resource_type, []))
         return handlers
 
     def get_on_after_update_handlers(self, resource_type: str) -> List[Callable]:
         """Get on_after_update handlers for a specific resource type."""
         handlers = []
+        handlers.extend(self._on_after_update_handlers.get("__global__", []))
+        if resource_type != "*" and resource_type != "__global__":
+            handlers.extend(self._on_after_update_handlers.get(resource_type, []))
         handlers.extend(self._on_after_update_handlers.get("*", []))
-        handlers.extend(self._on_after_update_handlers.get(resource_type, []))
         return handlers
     
     def get_on_before_delete_handlers(self, resource_type: str) -> List[Callable]:
         """Get on_delete handlers for a specific resource type."""
         handlers = []
+        handlers.extend(self._on_before_delete_handlers.get("__global__", []))
+        if resource_type != "*" and resource_type != "__global__":
+            handlers.extend(self._on_before_delete_handlers.get(resource_type, []))
         handlers.extend(self._on_before_delete_handlers.get("*", []))
-        handlers.extend(self._on_before_delete_handlers.get(resource_type, []))
         return handlers
 
     def get_on_after_delete_handlers(self, resource_type: str) -> List[Callable]:
         """Get on_after_delete handlers for a specific resource type."""
         handlers = []
+        handlers.extend(self._on_after_delete_handlers.get("__global__", []))
+        if resource_type != "*" and resource_type != "__global__":
+            handlers.extend(self._on_after_delete_handlers.get(resource_type, []))
         handlers.extend(self._on_after_delete_handlers.get("*", []))
-        handlers.extend(self._on_after_delete_handlers.get(resource_type, []))
         return handlers
 
     # ==================== OAuth Decorators ====================

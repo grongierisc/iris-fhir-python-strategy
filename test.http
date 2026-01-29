@@ -18,6 +18,20 @@ prefer: return=representation
   ]
 }
 
+###
+
+POST http://localhost:8082/fhir/r4/Organization 
+Accept: application/fhir+json
+Authorization: Basic U3VwZXJVc2VyOlNZUw==
+Content-Type: application/fhir+json
+prefer: return=representation
+
+{
+  "resourceType": "Organization",
+  "id": "example-org",
+  "name": "Example Organization"
+}
+
 ### 
 POST http://localhost:8082/fhir/r4/Observation/$somthing
 Content-Type: application/fhir+json

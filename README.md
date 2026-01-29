@@ -193,9 +193,32 @@ def customize_metadata(capability_statement):
 
 ## Available Decorators
 
+### Execution Pipeline
+
+For any given FHIR request, decorators execute in the following sequence:
+
+1.  **`@fhir.on_before_request`**: Global pre-processing (Logs, Auth).
+2.  **`@fhir.on_before_create`** (or read/update/delete/search): Interaction-specific pre-processing.
+3.  **Database Operation**: The core FHIR server processing (Saving/Retrieving).
+4.  **`@fhir.on_after_create`** (or read/update/delete/search): Interaction-specific post-processing.
+5.  **`@fhir.on_after_request`**: Global post-processing (Cleanup).
+
+```mermaid
+graph LR
+    A[Global Before Request] --> B[Specific Before Interaction]
+    B --> C((Database))
+    C --> D[Specific After Interaction]
+    D --> E[Global After Request]
+```
+
 ### Interaction Hooks
 
 These hooks allow you to intercept and modify standard FHIR interactions.
+
+**Execution Order Rule**: When multiple handlers are registered for the same interaction (e.g., global, specific, and wildcard), they execute in this strict order:
+1.  **Global Handlers**: `@fhir.hook()` (No arguments)
+2.  **Specific Resource**: `@fhir.hook("Patient")`
+3.  **Wildcard Handlers**: `@fhir.hook("*")`
 
 #### Pre-Process Hooks
 Runs before database operation. Signature: `def handler(fhir_service, fhir_request, body, timeout):`
@@ -226,9 +249,11 @@ Runs after database operation.
 
 *   `@fhir.on_before_request`
     *   Runs before **any** interaction. Useful for logging or setting up user context.
+    *   **Triggers**: Before `@fhir.on_before_{interaction}`.
     *   Signature: `def handler(fhir_service, fhir_request, body, timeout):`
 *   `@fhir.on_after_request`
     *   Runs after **any** interaction sequence. Useful for cleanup.
+    *   **Triggers**: After `@fhir.on_after_{interaction}`.
     *   Signature: `def handler(fhir_service, fhir_request, fhir_response, body):`
 
 ### Capability Statement
