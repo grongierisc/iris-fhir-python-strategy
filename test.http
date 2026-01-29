@@ -1,0 +1,50 @@
+POST http://localhost:8082/fhir/r4/Patient
+Accept: application/fhir+json
+Authorization: Basic U3VwZXJVc2VyOlNZUw==
+Content-Type: application/fhir+json
+prefer: return=representation
+
+{
+  "resourceType": "Patient",
+  "id": "example",
+  "name": [
+    {
+      "use": "official",
+      "family": "Doe",
+      "given": [
+        "John"
+      ]
+    }
+  ]
+}
+
+### 
+POST http://localhost:8082/fhir/r4/Observation/$somthing
+Content-Type: application/fhir+json
+Accept: application/fhir+json
+Authorization: Basic U3VwZXJVc2VyOlNZUw==
+
+{
+  "resourceType": "Observation",
+  "status": "final",
+  "code": {
+    "coding": [
+      {
+        "system": "http://loinc.org",
+        "code": "3141-9",
+        "display": "Weight Measured"
+      }
+    ],
+    "text": "Weight Measured"
+  },
+  "subject": {
+    "reference": "Patient/example"
+  },
+  "effectiveDateTime": "2024-01-01T12:00:00+00:00",
+  "valueQuantity": {
+    "value": 70,
+    "unit": "kg",
+    "system": "http://unitsofmeasure.org",
+    "code": "kg"
+  }
+}
