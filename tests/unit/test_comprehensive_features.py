@@ -76,19 +76,19 @@ class TestComprehensiveFeatures:
         assert len(delete_handlers) == 1
 
     def test_crud_hooks_wildcard(self):
-        @fhir.on_before_create() # Defaults to *
-        def create_any(*args): pass
+        @fhir.on_before_create("*") # Explicit Wildcard
+        def create_wildcard(*args): pass
         
-        # Should appear for Patient AND generic
-        # The implementation of get_on_create_handlers usually requires checking how it filters
-        # Let's assume the registry stores it under "*"
+        @fhir.on_before_create() # Global
+        def create_global(*args): pass
         
-        handlers = fhir._on_before_create_handlers.get("*")
-        assert len(handlers) == 1
-        
-        # Depending on implementation of get_handlers(type), it might return * + specific or just specific
-        # We should verify implementation behavior. Usually it returns both.
-        
+        # Test generic retrieval
+        handlers = fhir.get_on_before_create_handlers("Patient")
+        # Ordering: Global, Specific (none here), Wildcard
+        assert len(handlers) == 2
+        assert handlers[0] == create_global
+        assert handlers[1] == create_wildcard
+
     def test_operations_registration(self):
         @fhir.operation("my-op", scope="System")
         def sys_op(*args): pass
@@ -168,21 +168,20 @@ class TestComprehensiveFeatures:
         assert execution_order == [1, 2]
 
     def test_wildcard_mixed_with_specific(self):
-        @fhir.on_before_update() # Wildcard
-        def wildcard_handler(*args): pass
+        @fhir.on_before_update() # Global
+        def global_handler(*args): pass
         
         @fhir.on_before_update("Patient") # Specific
         def specific_handler(*args): pass
         
-        # Getting Patient handlers should return both
+        # Getting Patient handlers
         updated_handlers = fhir.get_on_before_update_handlers("Patient")
         assert len(updated_handlers) == 2
-        assert wildcard_handler in updated_handlers
-        assert specific_handler in updated_handlers
+        # Order: Global then Specific
+        assert updated_handlers == [global_handler, specific_handler]
         
-        # Getting Observation handlers should only return wildcard
+        # Getting Observation handlers should only return global
         obs_handlers = fhir.get_on_before_update_handlers("Observation")
         assert len(obs_handlers) == 1
-        assert wildcard_handler in obs_handlers
-        assert specific_handler not in obs_handlers
+        assert obs_handlers == [global_handler]
 
