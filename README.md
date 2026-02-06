@@ -50,14 +50,31 @@ This project provides a bridge between the high-performance InterSystems IRIS FH
 
 ### Detailed Examples
 
-#### 1. Validation Logic
-Validate resources before they are saved to the database.
+#### 1. Global Request Logic (e.g., Scope Verification)
+Intercept every request to check for required scopes.
 
 ```python
 from fhir_decorators import fhir
 
+@fhir.on_before_request
+def check_scope(service: Any, request: Any, body: dict, timeout: int):
+    """
+    Ensure the user has the 'VIP' scope for processing.
+    """
+    token = request.AdditionalInfo.GetAt("USER:OAuthToken") or ""
+    if token:
+        decoded_token = jwt.decode(token, options={"verify_signature": False})
+        scope_list = decoded_token.get("scope", "").split(" ")
+        if "VIP" not in scope_list:
+            raise ValueError("Insufficient scope: VIP required")
+```
+
+#### 2. Validation Logic
+Validate resources before they are saved to the database.
+
+```python
 @fhir.on_validate_resource("Patient")
-def validate_patient(resource, is_in_transaction):
+def validate_patient(resource: Dict, is_in_transaction: bool):
     """
     Ensure specific rules for Patient resources.
     Raises ValueError to reject the resource with a 400 Bad Request.
@@ -72,7 +89,7 @@ def validate_patient(resource, is_in_transaction):
             raise ValueError("This family name is not allowed")
 
 @fhir.on_validate_bundle
-def validate_bundle(bundle, fhir_version):
+def validate_bundle(bundle: Dict, fhir_version: str):
     """
     Apply rules to the entire bundle.
     """
@@ -81,12 +98,12 @@ def validate_bundle(bundle, fhir_version):
             raise ValueError("Transaction bundle too large (max 100 entries)")
 ```
 
-#### 2. Pre-Processing Hooks (Modification)
+#### 3. Pre-Processing Hooks (Modification)
 Modify the incoming resource or metadata before the server processes it.
 
 ```python
 @fhir.on_before_create("Observation")
-def enrich_observation(service, request, body, timeout):
+def enrich_observation(service: Any, request: Any, body: dict, timeout: int):
     """
     Automatically add a tag to all new Observations.
     """
@@ -99,12 +116,12 @@ def enrich_observation(service, request, body, timeout):
     })
 ```
 
-#### 3. Post-Processing Hooks (Masking/Filtering)
+#### 4. Post-Processing Hooks (Masking/Filtering)
 Modify or filter the response *after* the database operation but *before* sending it to the client.
 
 ```python
 @fhir.on_after_read("Patient")
-def mask_patient_data(resource):
+def mask_patient_data(resource: Dict) -> bool:
     """
     Mask sensitive fields for non-admin users.
     Returns:
@@ -126,12 +143,12 @@ def mask_patient_data(resource):
     return True
 ```
 
-#### 4. Custom Operations ($operation)
+#### 5. Custom Operations ($operation)
 Implement custom FHIR operations using Python functions.
 
 ```python
 @fhir.operation(name="echo", scope="Instance", resource_type="Patient")
-def echo_patient_operation(name, scope, body, service, request, response):
+def echo_patient_operation(name: str, scope: str, body: dict, service: Any, request: Any, response: Any):
     """
     Implements POST /Patient/{id}/$echo
     """
@@ -150,12 +167,12 @@ def echo_patient_operation(name, scope, body, service, request, response):
     return response
 ```
 
-#### 5. Search Filtering (Row-Level Security)
+#### 6. Search Filtering (Row-Level Security)
 Intercept search results to enforce fine-grained access control.
 
 ```python
 @fhir.on_after_search("Patient")
-def filter_search_results(result_set, resource_type):
+def filter_search_results(result_set: Any, resource_type: str):
     """
     Iterate through search results and remove restricted items.
     'result_set' is an iris.HS.FHIRServer.Util.SearchResult object.
@@ -173,12 +190,12 @@ def filter_search_results(result_set, resource_type):
             result_set._SaveRow()
 ```
 
-#### 6. Customizing Capability Statement
+#### 7. Customizing Capability Statement
 Remove unsupported resources or add documentation.
 
 ```python
 @fhir.on_capability_statement
-def customize_metadata(capability_statement):
+def customize_metadata(capability_statement: Dict) -> Dict:
     """
     Remove 'Account' resource from the metadata.
     """
@@ -197,18 +214,23 @@ def customize_metadata(capability_statement):
 
 For any given FHIR request, decorators execute in the following sequence:
 
-1.  **`@fhir.on_before_request`**: Global pre-processing (Logs, Auth).
-2.  **`@fhir.on_before_create`** (or read/update/delete/search): Interaction-specific pre-processing.
-3.  **Database Operation**: The core FHIR server processing (Saving/Retrieving).
-4.  **`@fhir.on_after_create`** (or read/update/delete/search): Interaction-specific post-processing.
-5.  **`@fhir.on_after_request`**: Global post-processing (Cleanup).
+1.  **OAuth/Token Hooks**: Authentication and context setup (`@fhir.oauth_*`).
+2.  **`@fhir.on_before_request`**: Global pre-processing (Logs, Auth).
+3.  **`@fhir.on_before_create`** (or read/update/delete/search): Interaction-specific pre-processing.
+4.  **`@fhir.on_validate_resource`**: Custom validation logic.
+5.  **Database Operation**: The core FHIR server processing (Saving/Retrieving).
+6.  **`@fhir.on_after_create`** (or read/update/delete/search): Interaction-specific post-processing and **Search Filtering** (Row-Level Security).
+7.  **`@fhir.on_after_request`**: Global post-processing (Cleanup).
 
 ```mermaid
-graph LR
-    A[Global Before Request] --> B[Specific Before Interaction]
-    B --> C((Database))
-    C --> D[Specific After Interaction]
-    D --> E[Global After Request]
+graph TD
+    Auth["OAuth/Token Hooks"] --> A["Global Before Request<br/>@fhir.on_before_request"]
+    A --> B["Specific Before Interaction<br/>@fhir.on_before_*"]
+    B --> V{"Validation<br/>@fhir.on_validate_*"}
+    V -->|Pass| C(("Database"))
+    V -->|Fail| Err["Error"]
+    C --> D["Specific After Interaction<br/>Masking / Search Filtering<br/>@fhir.on_after_*"]
+    D --> E["Global After Request<br/>@fhir.on_after_request"]
 ```
 
 ### Interaction Hooks
