@@ -3,7 +3,7 @@ import pytest
 import sys
 from unittest.mock import MagicMock, patch
 from src.python.fhir_decorators import fhir
-from src.python.iris_adapter import dynamic_object_from_json
+from src.python.fhir_decorators import dynamic_object_from_json
 
 class TestCoverageGap:
     

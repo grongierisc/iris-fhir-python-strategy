@@ -777,6 +777,13 @@ class FhirDecorators:
 # Global registry instance
 fhir = FhirDecorators()
 
+def dynamic_object_from_json(data: str) -> Any:
+    try:
+        import iris
+    except Exception as exc:
+        raise RuntimeError("iris is not available") from exc
+    return iris.cls("%DynamicObject")._FromJSON(data)
+
 
 # Export for convenience
 __all__ = ['fhir', 'FhirDecorators']

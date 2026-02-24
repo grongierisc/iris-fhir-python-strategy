@@ -10,16 +10,15 @@ import threading
 from typing import Any, Dict, List, Optional
 
 try:
-    from fhir_decorators import fhir
-    from iris_adapter import dynamic_object_from_json
+    from fhir_decorators import fhir,dynamic_object_from_json
+
 except ModuleNotFoundError:
     import sys
     from pathlib import Path
 
     PROJECT_ROOT = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(PROJECT_ROOT / "src" / "python"))
-    from fhir_decorators import fhir
-    from iris_adapter import dynamic_object_from_json
+    from fhir_decorators import fhir,dynamic_object_from_json
 
 # ==================== State Management ====================
 # Use a simple class to manage request-scoped state
