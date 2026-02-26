@@ -39,7 +39,7 @@ dependencies = [
 exclude = ["tests*","examples*"]
 
 [project.scripts]
-iris_fhir_python_strategy = "iris_fhir_python_strategy.__main__:main"
+iris_fhir_python_strategy = "iris_fhir_python_strategy"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
