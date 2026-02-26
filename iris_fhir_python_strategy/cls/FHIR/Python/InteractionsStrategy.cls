@@ -14,7 +14,12 @@ Method GetMetadataResource() As %DynamicObject
 
 	// Set Python path and import module
 	do ..SetPythonPath(..PythonPath)
-	do ..TryImportModule(..PythonModule, .tModuleObj, 0)
+	if ..TryImportModule(..PythonModule, .tModuleObj) {
+		set ..PythonModule = tModuleObj
+	} else {
+		zw "Failed to import Python module: "_tPythonModule
+		return ##super()
+	}
 	
 	// Get the fhir decorator registry
 	set fhirDecorators = ##class(%SYS.Python).Import("iris_fhir_python_strategy")

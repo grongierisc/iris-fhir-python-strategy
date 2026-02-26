@@ -11,7 +11,12 @@ ClassMethod ValidateBundle(
 	
 	do ..SetPythonPath(customPath)
 	
-	do ..TryImportModule(customModule, .module)
+	if ..TryImportModule(customModule, .module) {
+		set ..PythonModule = module
+	} else {
+		zw "Failed to import Python module: "_customModule
+		return ##super(pResourceObject, pFHIRVersion)
+	}
 	
 	set decoratorsModule = ##class(%SYS.Python).Import("iris_fhir_python_strategy")
 	set registry = decoratorsModule.fhir

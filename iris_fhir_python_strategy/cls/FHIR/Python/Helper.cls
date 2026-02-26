@@ -73,7 +73,7 @@ ClassMethod GetCustomizationSettings(
 
 	if (pPythonPath = "") || (pPythonModule = "") {
 		set pPythonPath = "/irisdev/app/"
-		set pPythonModule = "examples.custom_decorators"
+		set pPythonModule = "iris_fhir_python_strategy"
 	}
 
 	quit $$$OK

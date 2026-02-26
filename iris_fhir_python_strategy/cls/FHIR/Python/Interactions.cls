@@ -25,7 +25,8 @@ Method %OnNew(pStrategy As HS.FHIRServer.Storage.JsonAdvSQL.InteractionsStrategy
 	if ..TryImportModule(..PythonModule, .tModuleObj) {
 		set ..PythonModule = tModuleObj
 	} else {
-		set ..PythonModule = ""
+		zw "Failed to import Python module: "_tPythonModule
+		return ##super(pStrategy)
 	}
 	
 	// Get the fhir decorator registry
