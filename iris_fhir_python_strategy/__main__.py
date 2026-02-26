@@ -6,8 +6,7 @@ import argparse
 
 path = str(files('iris_fhir_python_strategy').joinpath('cls'))
 
-
-if __name__ == "__main__":
+def main():
     ## simple pass argument to install cls into iris namespace
     # arg is --namespace or -n for short
     parser = argparse.ArgumentParser(description='Install cls class into iris namespace.')
@@ -21,5 +20,8 @@ if __name__ == "__main__":
 
     import iris
     iris.cls('%SYSTEM.OBJ').LoadDir(path,'cubk',"*.cls",1)
+
+if __name__ == "__main__":
+    main()
 
 
