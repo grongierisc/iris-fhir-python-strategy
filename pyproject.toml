@@ -27,15 +27,16 @@ classifiers = [
     "Topic :: Utilities"
 ]
 
+dependencies = [
+    "iris-embedded-python-wrapper>=0.0.6"
+]
+
+
 [tool.setuptools.package-data]
 "*" = ["*.cls"]
 
 [tool.setuptools.packages.find]
-exclude = ["tests*"]
-
-dependencies = [
-    "iris-embedded-python-wrapper>=0.0.6",
-]
+exclude = ["tests*","examples*"]
 
 [project.scripts]
 iris_fhir_python_strategy = "iris_fhir_python_strategy.__main__:main"

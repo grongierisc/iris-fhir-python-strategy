@@ -40,7 +40,7 @@ def fhir_base_url() -> Generator[str, None, None]:
     docker = pytest.importorskip("docker")
     client = docker.from_env()
 
-    image_name = "iris-fhr-python-strategy:latest"
+    image_name = "iris-fhir-python-strategy:latest"
     running = _find_running_container(client, image_name)
     created = None
 

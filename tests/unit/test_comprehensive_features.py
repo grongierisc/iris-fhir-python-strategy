@@ -1,6 +1,6 @@
 
 import pytest
-from src.python.iris_fhir_python_strategy import FhirDecorators, fhir
+from iris_fhir_python_strategy import FhirDecorators, fhir
 
 class TestComprehensiveFeatures:
     

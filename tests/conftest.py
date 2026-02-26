@@ -6,7 +6,7 @@ from typing import Any, Callable
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-PYTHON_SRC = PROJECT_ROOT / "src" / "python"
+PYTHON_SRC = PROJECT_ROOT 
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PYTHON_SRC))
 
