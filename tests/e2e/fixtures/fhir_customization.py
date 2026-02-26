@@ -2,14 +2,14 @@ import threading
 from typing import Any, Dict, List, Optional
 
 try:
-    from fhir_decorators import fhir
+    from iris_fhir_python_strategy import fhir
 except ModuleNotFoundError:
     import sys
     from pathlib import Path
 
     PROJECT_ROOT = Path(__file__).resolve().parents[3]
     sys.path.insert(0, str(PROJECT_ROOT / "src" / "python"))
-    from fhir_decorators import fhir
+    from iris_fhir_python_strategy import fhir
 
 
 class RequestContext:

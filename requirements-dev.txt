@@ -1,3 +1,7 @@
 pytest
 docker
 requests
+iris-embedded-python-wrapper
+wheel
+setuptools
+build

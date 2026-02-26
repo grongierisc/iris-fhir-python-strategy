@@ -13,7 +13,7 @@ ClassMethod ValidateBundle(
 	
 	do ..TryImportModule(customModule, .module)
 	
-	set decoratorsModule = ##class(%SYS.Python).Import("fhir_decorators")
+	set decoratorsModule = ##class(%SYS.Python).Import("iris_fhir_python_strategy")
 	set registry = decoratorsModule.fhir
 	
 	// convert pResourceObject to Python object

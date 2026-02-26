@@ -5,7 +5,7 @@ This module provides a decorator-based API for customizing FHIR server behavior.
 Simply decorate your functions to register customizations.
 
 Example:
-    from fhir_decorators import fhir
+    from iris_fhir_python_strategy import fhir
     
     @fhir.on_capability_statement
     def customize_capability(capability_statement):
@@ -21,8 +21,6 @@ Example:
 """
 
 from typing import Callable, Dict, List, Optional, Any
-from functools import wraps
-
 
 class FhirDecorators:
     """

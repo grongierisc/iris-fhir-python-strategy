@@ -57,7 +57,7 @@ Method %OnNew(pSchema As HS.FHIRServer.Schema) As %Status
 	set importlib = ##class(%SYS.Python).Import("importlib")
 	do importlib."import_module"(..PythonModule)
 	
-	set decoratorsModule = ##class(%SYS.Python).Import("fhir_decorators")
+	set decoratorsModule = ##class(%SYS.Python).Import("iris_fhir_python_strategy")
 	set ..PythonClass = decoratorsModule.fhir
 
 	quit $$$OK

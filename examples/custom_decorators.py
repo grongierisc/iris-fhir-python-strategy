@@ -10,7 +10,7 @@ import threading
 from typing import Any, Dict, List, Optional
 
 try:
-    from fhir_decorators import fhir,dynamic_object_from_json
+    from iris_fhir_python_strategy import fhir,dynamic_object_from_json,FhirDecorators
 
 except ModuleNotFoundError:
     import sys
@@ -18,7 +18,7 @@ except ModuleNotFoundError:
 
     PROJECT_ROOT = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(PROJECT_ROOT / "src" / "python"))
-    from fhir_decorators import fhir,dynamic_object_from_json
+    from iris_fhir_python_strategy import fhir,dynamic_object_from_json
 
 # ==================== State Management ====================
 # Use a simple class to manage request-scoped state
@@ -199,25 +199,6 @@ def patient_diff_operation(operation_name: str, operation_scope: str, body: Dict
     fhir_response.Json = dynamic_object_from_json(diff)
     
     return fhir_response
-
-
-@fhir.operation("validate", scope="Type", resource_type="Patient")
-def validate_patient_operation(operation_name: str, operation_scope: str, body: Dict[str, Any],
-                               fhir_service: Any, fhir_request: Any, fhir_response: Any):
-    """
-    Custom $validate operation for Patient resources.
-    """
-    # Use FhirValidateOperation for validation
-    from FhirInteraction import FhirValidateOperation
-    validator = FhirValidateOperation()
-    return validator.process_validate_operation(
-        operation_name,
-        operation_scope,
-        body,
-        fhir_service,
-        fhir_request,
-        fhir_response
-    )
 
 
 # ==================== Helper Functions ====================

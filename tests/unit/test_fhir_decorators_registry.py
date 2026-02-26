@@ -1,6 +1,6 @@
 import pytest
 
-from fhir_decorators import FhirDecorators
+from iris_fhir_python_strategy import FhirDecorators
 
 
 @pytest.mark.unit

@@ -45,7 +45,7 @@ This project provides a bridge between the high-performance InterSystems IRIS FH
 ### Defining Custom Logic
 
 1. Open `examples/custom_decorators.py` (or create your own module).
-2. Import the `fhir` registry from `fhir_decorators`.
+2. Import the `fhir` registry from `iris_fhir_python_strategy`.
 3. Decorate your functions to register them as handlers.
 
 ### Detailed Examples
@@ -54,7 +54,7 @@ This project provides a bridge between the high-performance InterSystems IRIS FH
 Intercept every request to check for required scopes.
 
 ```python
-from fhir_decorators import fhir
+from iris_fhir_python_strategy import fhir
 
 @fhir.on_before_request
 def check_scope(service: Any, request: Any, body: dict, timeout: int):
@@ -333,7 +333,7 @@ The strategy is configured via environment variables in `docker-compose.yml`:
 ## Architecture
 
 1. **Interactions.cls**: The ObjectScript class that intercepts FHIR requests.
-2. **fhir_decorators.py**: The Python registry that manages hooks.
+2. **iris_fhir_python_strategy.py**: The Python registry that manages hooks.
 3. **Your Module**: The Python code where you define handlers.
 
 When a request arrives (e.g., `POST /Patient`), IRIS calls `Interactions.cls`, which looks up the registered Python handler for `on_before_create` and executes it.

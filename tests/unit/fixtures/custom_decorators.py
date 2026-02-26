@@ -1,4 +1,4 @@
-from fhir_decorators import FhirDecorators
+from iris_fhir_python_strategy import FhirDecorators
 from typing import Any, Dict
 
 

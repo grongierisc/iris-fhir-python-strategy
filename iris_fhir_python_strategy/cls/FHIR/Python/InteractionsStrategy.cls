@@ -17,7 +17,7 @@ Method GetMetadataResource() As %DynamicObject
 	do ..TryImportModule(..PythonModule, .tModuleObj, 0)
 	
 	// Get the fhir decorator registry
-	set fhirDecorators = ##class(%SYS.Python).Import("fhir_decorators")
+	set fhirDecorators = ##class(%SYS.Python).Import("iris_fhir_python_strategy")
 	set ..PythonClass = fhirDecorators.fhir
 
     set tMyCapabilityStatement = ##super()

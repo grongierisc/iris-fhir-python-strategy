@@ -1,3 +1,45 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[project]
+name = "iris_fhir_python_strategy"
+version = "0.0.1"
+description = "Iris Fhir Python Strategy"
+readme = "README.md"
+authors = [
+    { name = "grongier", email = "guillaume.rongier@intersystems.com" },
+]
+keywords = ["iris", "intersystems", "python", "embedded", "fhir"]
+
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Utilities"
+]
+
+[tool.setuptools.package-data]
+"*" = ["*.cls"]
+
+[tool.setuptools.packages.find]
+exclude = ["tests*"]
+
+dependencies = [
+    "iris-embedded-python-wrapper>=0.0.6",
+]
+
+[project.scripts]
+iris_fhir_python_strategy = "iris_fhir_python_strategy.__main__:main"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [

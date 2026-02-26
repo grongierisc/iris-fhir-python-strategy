@@ -12,7 +12,7 @@ ClassMethod HelperGetPython() As %Status
 	do importlib."import_module"(tPythonModule)
 	
 	// Get the fhir decorator registry
-	set fhirDecorators = ##class(%SYS.Python).Import("fhir_decorators")
+	set fhirDecorators = ##class(%SYS.Python).Import("iris_fhir_python_strategy")
 	Quit fhirDecorators.fhir
 }
 

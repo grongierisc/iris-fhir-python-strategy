@@ -29,7 +29,7 @@ Method %OnNew(pStrategy As HS.FHIRServer.Storage.JsonAdvSQL.InteractionsStrategy
 	}
 	
 	// Get the fhir decorator registry
-	set fhirDecorators = ##class(%SYS.Python).Import("fhir_decorators")
+	set fhirDecorators = ##class(%SYS.Python).Import("iris_fhir_python_strategy")
 	set ..PythonClass = fhirDecorators.fhir
 	
 	// Set interactions reference for helper functions

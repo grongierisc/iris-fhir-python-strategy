@@ -1,10 +1,10 @@
 services:
 
   iris:
-    image: iris-fhr-python-strategy:latest
+    image: iris-fhir-python-strategy:latest
     build: 
       context: .
-      dockerfile: dockerfile
+      dockerfile: Dockerfile
     restart: always
     environment:
       - ISC_CPF_MERGE_FILE=/irisdev/app/merge.cpf
