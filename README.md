@@ -72,30 +72,60 @@ def check_scope(service: Any, request: Any, body: dict, timeout: int):
 #### 2. Validation Logic
 Validate resources before they are saved to the database.
 
+Handlers can signal failure in two ways:
+- **Raise an exception** (`ValueError`) — the message is wrapped in a single OperationOutcome issue.
+- **Return an OperationOutcome dict** — all issues with `severity == "error"` are collected and returned as a single 400 response, allowing multiple granular errors with paths.
+
 ```python
 @fhir.on_validate_resource("Patient")
 def validate_patient(resource: Dict, is_in_transaction: bool):
     """
-    Ensure specific rules for Patient resources.
-    Raises ValueError to reject the resource with a 400 Bad Request.
+    Raise an exception for a simple single-error case.
     """
-    # Rule: Check if 'identifier' exists
-    if "identifier" not in resource:
-         raise ValueError("Patient must have at least one identifier")
-    
-    # Rule: Check for forbidden names
     for name in resource.get("name", []):
         if name.get("family") == "Forbidden":
             raise ValueError("This family name is not allowed")
+
+@fhir.on_validate_resource("Patient")
+def validate_patient_outcome(resource: Dict, is_in_transaction: bool):
+    """
+    Return an OperationOutcome for multi-error, path-aware validation.
+    """
+    issues = []
+    if "identifier" not in resource:
+        issues.append({
+            "severity": "error",
+            "code": "required",
+            "details": {"text": "Patient must have at least one identifier"},
+            "expression": ["Patient.identifier"],
+        })
+    for i, name in enumerate(resource.get("name", [])):
+        if name.get("use") not in ["official", "usual", None]:
+            issues.append({
+                "severity": "error",
+                "code": "value",
+                "details": {"text": f"Invalid name use value: {name.get('use')}"},
+                "expression": [f"Patient.name[{i}].use"],
+            })
+    if issues:
+        return {"resourceType": "OperationOutcome", "issue": issues}
 
 @fhir.on_validate_bundle
 def validate_bundle(bundle: Dict, fhir_version: str):
     """
     Apply rules to the entire bundle.
     """
+    issues = []
     if bundle.get("type") == "transaction":
         if len(bundle.get("entry", [])) > 100:
-            raise ValueError("Transaction bundle too large (max 100 entries)")
+            issues.append({
+                "severity": "error",
+                "code": "too-costly",
+                "details": {"text": "Transaction bundle too large (max 100 entries)"},
+                "expression": ["Bundle.entry"],
+            })
+    if issues:
+        return {"resourceType": "OperationOutcome", "issue": issues}
 ```
 
 #### 3. Pre-Processing Hooks (Modification)
@@ -318,10 +348,12 @@ Runs after database operation.
 
 *   `@fhir.on_validate_resource(resource_type)`
     *   Custom logic to validate a resource.
-    *   Signature: `def handler(resource, is_in_transaction):`
+    *   Signature: `def handler(resource, is_in_transaction):` -> `dict | None`
+    *   Returns: An OperationOutcome dict to report structured errors, or `None` (raise an exception instead).
 *   `@fhir.on_validate_bundle`
     *   Custom logic to validate a bundle.
-    *   Signature: `def handler(bundle, fhir_version):`
+    *   Signature: `def handler(bundle, fhir_version):` -> `dict | None`
+    *   Returns: An OperationOutcome dict to report structured errors, or `None` (raise an exception instead).
 
 ## Configuration
 

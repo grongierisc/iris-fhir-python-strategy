@@ -51,7 +51,7 @@ Method ValidateResource(
 			quit
 		}
 		
-		do ..RunHandlers(handlers, resourcePyObj, pIsInTransaction)
+		do ..RunValidationHandlers(handlers, resourcePyObj, pIsInTransaction)
 	}
 }
 

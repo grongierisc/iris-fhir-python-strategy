@@ -228,3 +228,64 @@ def fail_validation_hard(resource_object: Dict[str, Any], is_in_transaction: boo
 def crash_operation(operation_name: str, operation_scope: str, body: Dict[str, Any],
                    fhir_service: Any, fhir_request: Any, fhir_response: Any):
     raise Exception("Boom! explicit crash")
+
+
+# ------------------------------------------------------------------ #
+# OperationOutcome-return validators (used by e2e outcome tests)      #
+# ------------------------------------------------------------------ #
+
+@fhir.on_validate_resource("Medication")
+def validate_medication_outcome(resource_object: Dict[str, Any], is_in_transaction: bool = False):
+    """Single-error OperationOutcome: Medication must have a code."""
+    if "code" not in resource_object:
+        return {
+            "resourceType": "OperationOutcome",
+            "issue": [
+                {
+                    "severity": "error",
+                    "code": "required",
+                    "details": {"text": "Medication.code is required"},
+                    "expression": ["Medication.code"],
+                }
+            ],
+        }
+
+
+@fhir.on_validate_resource("Device")
+def validate_device_outcome(resource_object: Dict[str, Any], is_in_transaction: bool = False):
+    """Multi-error OperationOutcome: Device must have identifier and a valid status."""
+    issues = []
+    if "identifier" not in resource_object:
+        issues.append({
+            "severity": "error",
+            "code": "required",
+            "details": {"text": "Device.identifier is required"},
+            "expression": ["Device.identifier"],
+        })
+    valid_statuses = ("active", "inactive", "entered-in-error", "unknown")
+    if resource_object.get("status") not in valid_statuses:
+        issues.append({
+            "severity": "error",
+            "code": "value",
+            "details": {"text": f"Device.status must be one of {valid_statuses}"},
+            "expression": ["Device.status"],
+        })
+    if issues:
+        return {"resourceType": "OperationOutcome", "issue": issues}
+
+
+@fhir.on_validate_resource("Practitioner")
+def validate_practitioner_warning_only(resource_object: Dict[str, Any], is_in_transaction: bool = False):
+    """Warning-only OperationOutcome: should NOT block the request."""
+    if "qualification" not in resource_object:
+        return {
+            "resourceType": "OperationOutcome",
+            "issue": [
+                {
+                    "severity": "warning",
+                    "code": "informational",
+                    "details": {"text": "Practitioner.qualification is recommended"},
+                    "expression": ["Practitioner.qualification"],
+                }
+            ],
+        }

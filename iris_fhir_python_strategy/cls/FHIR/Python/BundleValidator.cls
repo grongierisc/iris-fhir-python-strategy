@@ -12,7 +12,6 @@ ClassMethod ValidateBundle(
 	do ..SetPythonPath(customPath)
 	
 	if ..TryImportModule(customModule, .module) {
-		set ..PythonModule = module
 	} else {
 		zw "Failed to import Python module: "_customModule
 		return ##super(pResourceObject, pFHIRVersion)
@@ -31,7 +30,7 @@ ClassMethod ValidateBundle(
 		do ##super(pResourceObject, pFHIRVersion)
 		quit
 	}
-	do ..RunHandlers(handlers, resourcePyObj, pFHIRVersion)
+	do ..RunValidationHandlers(handlers, resourcePyObj, pFHIRVersion)
 }
 
 }

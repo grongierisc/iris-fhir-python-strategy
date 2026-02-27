@@ -253,6 +253,72 @@ ClassMethod HandlePythonException(pEx As %Exception.PythonException)
 	$$$ThrowOnError(oneError)
 }
 
+/// Run validation handlers that may raise exceptions OR return an OperationOutcome dict.
+/// Errors from all handlers are aggregated before throwing.
+ClassMethod RunValidationHandlers(
+	handlers As %SYS.Python,
+	args...)
+{
+	if handlers."__len__"() = 0 Quit
+	set len = handlers."__len__"()
+	set jsonLib = ##class(%SYS.Python).Import("json")
+	set errorStatus = $$$OK
+	set sc = $$BeginCapture^%SYS.Capture(.msg)
+	try {
+		for i=0:1:len-1 {
+			set handler = handlers."__getitem__"(i)
+			if $Get(args) = 0 set result = handler."__call__"()
+			if $Get(args) = 1 set result = handler."__call__"(args(1))
+			if $Get(args) = 2 set result = handler."__call__"(args(1), args(2))
+			if $Get(args) = 3 set result = handler."__call__"(args(1), args(2), args(3))
+			if $Get(args) = 4 set result = handler."__call__"(args(1), args(2), args(3), args(4))
+			if $Get(args) = 5 set result = handler."__call__"(args(1), args(2), args(3), args(4), args(5))
+
+			// If the handler returned a Python object (OperationOutcome dict), collect its errors
+			if $IsObject(result) {
+				set outcomeJson = jsonLib.dumps(result)
+				set errorStatus = ..MergeOperationOutcomeErrors(outcomeJson, errorStatus)
+			}
+		}
+	} catch ex {
+		set sc = $$EndCapture^%SYS.Capture(msg,.msgArray)
+		set ex = ##class(FHIR.Python.Helper).RecoverPythonException(ex)
+		do ##class(FHIR.Python.Helper).HandlePythonException(ex)
+		throw ex
+	}
+	set sc = $$EndCapture^%SYS.Capture(msg,.msgArray)
+	$$$ThrowOnError(errorStatus)
+}
+
+/// Parse a JSON OperationOutcome and append any severity=error issues to existingStatus.
+ClassMethod MergeOperationOutcomeErrors(
+	json As %String,
+	existingStatus As %Status) As %Status
+{
+	set operationOutcome = {}.%FromJSON(json)
+	if operationOutcome.resourceType '= "OperationOutcome" return existingStatus
+
+	set errorStatus = existingStatus
+	set iter = operationOutcome.issue.%GetIterator()
+	while iter.%GetNext(.key, .issue)
+	{
+		if (issue.severity = "error")
+		{
+			set expression = ""
+			if $IsObject(issue.expression) {
+				set expression = issue.expression.%Get(0)
+			}
+			set detailsText = ""
+			if $IsObject(issue.details) {
+				set detailsText = issue.details.text
+			}
+			set oneError = $$$ERROR($$$GeneralError, detailsText, $$$OutcomeWithPath(400, "error", issue.code, expression))
+			$$$FHIRAddError(errorStatus, oneError)
+		}
+	}
+	return errorStatus
+}
+
 ClassMethod UpdateDynamicObject(
 	pTarget As %DynamicObject,
 	pSource As %SYS.Python)

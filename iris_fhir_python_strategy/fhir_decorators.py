@@ -720,20 +720,47 @@ class FhirDecorators:
     def on_validate_resource(self, resource_type: str = "*") -> Callable:
         """
         Decorator for custom resource validation.
-        
+
+        The handler may signal validation failures in two ways:
+
+        1. **Raise an exception** (e.g. ``ValueError``) — the message is returned as a
+           single FHIR OperationOutcome error issue.
+
+        2. **Return an OperationOutcome dict** — the dict is parsed by the ObjectScript
+           layer; every issue with ``severity == "error"`` becomes a 400 error.  Issues
+           with other severities (warning, information) are silently ignored, allowing the
+           handler to annotate results without blocking the request.
+
         Signature:
-            def handler(resource: dict, is_in_transaction: bool) -> None:
-        
+            def handler(resource: dict, is_in_transaction: bool) -> dict | None:
+
         Args:
             resource_type: FHIR resource type (e.g., "Patient") or "*" for all types
-        
-        Example:
+
+        Example — raise an exception::
+
             @fhir.on_validate_resource("Patient")
             def validate_patient(resource, is_in_transaction):
-                # Custom validation logic
-                # Raise exception if validation fails
                 if not resource.get("name"):
                     raise ValueError("Patient name is required")
+
+        Example — return an OperationOutcome::
+
+            @fhir.on_validate_resource("Patient")
+            def validate_patient(resource, is_in_transaction):
+                issues = []
+                if not resource.get("identifier"):
+                    issues.append({
+                        "severity": "error",
+                        "code": "required",
+                        "details": {"text": "Patient must have at least one identifier"},
+                        "expression": ["Patient.identifier"],
+                    })
+                if issues:
+                    return {
+                        "resourceType": "OperationOutcome",
+                        "issue": issues,
+                    }
         """
         def decorator(func: Callable) -> Callable:
             if resource_type not in self._validate_resource_handlers:
@@ -745,16 +772,42 @@ class FhirDecorators:
     def on_validate_bundle(self, func: Callable) -> Callable:
         """
         Decorator for custom bundle validation.
-        
+
+        The handler may signal validation failures in two ways:
+
+        1. **Raise an exception** (e.g. ``ValueError``) — the message is returned as a
+           single FHIR OperationOutcome error issue.
+
+        2. **Return an OperationOutcome dict** — the dict is parsed by the ObjectScript
+           layer; every issue with ``severity == "error"`` becomes a 400 error.
+
         Signature:
-            def handler(resource: dict, fhir_version: str) -> None:
-        
-        Example:
+            def handler(bundle: dict, fhir_version: str) -> dict | None:
+
+        Example — raise an exception::
+
             @fhir.on_validate_bundle
-            def validate_bundle(resource, fhir_version):
-                # Custom bundle validation
-                if resource.get("type") not in ["transaction", "batch"]:
+            def validate_bundle(bundle, fhir_version):
+                if bundle.get("type") not in ["transaction", "batch"]:
                     raise ValueError("Invalid bundle type")
+
+        Example — return an OperationOutcome::
+
+            @fhir.on_validate_bundle
+            def validate_bundle(bundle, fhir_version):
+                issues = []
+                if len(bundle.get("entry", [])) > 100:
+                    issues.append({
+                        "severity": "error",
+                        "code": "too-costly",
+                        "details": {"text": "Transaction bundle too large (max 100 entries)"},
+                        "expression": ["Bundle.entry"],
+                    })
+                if issues:
+                    return {
+                        "resourceType": "OperationOutcome",
+                        "issue": issues,
+                    }
         """
         self._validate_bundle_handlers.append(func)
         return func
