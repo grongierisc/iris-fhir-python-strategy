@@ -312,6 +312,7 @@ ClassMethod MergeOperationOutcomeErrors(
 			if $IsObject(issue.details) {
 				set detailsText = issue.details.text
 			}
+            if detailsText = "" set detailsText = issue.diagnostics
 			set oneError = $$$ERROR($$$GeneralError, detailsText, $$$OutcomeWithPath(400, "error", issue.code, expression))
 			$$$FHIRAddError(errorStatus, oneError)
 		}
