@@ -32,18 +32,12 @@ Method %OnNew(pStrategy As HS.FHIRServer.Storage.JsonAdvSQL.InteractionsStrategy
 	// Get the fhir decorator registry
 	set fhirDecorators = ##class(%SYS.Python).Import("iris_fhir_python_strategy")
 	set ..PythonClass = fhirDecorators.fhir
-	
-	// Set interactions reference for helper functions
-	if $ISOBJECT(..PythonModule) {
-		set pyBuiltins = ##class(%SYS.Python).Import("builtins")
-		if pyBuiltins.hasattr(..PythonModule, "get_request_context") {
-			set context = ..PythonModule."get_request_context"()
-			set context.interactions = $this
-		} elseif pyBuiltins.hasattr(..PythonModule, "context") {
-			set context = ..PythonModule.context
-			set context.interactions = $this
-		}
-	}
+
+	// Initialise the service-level InteractionsContext with $this.
+	// This runs once when the FHIR service starts and persists for the
+	// lifetime of the process.  User code can store cached objects on
+	// get_interactions_context() after this point.
+	do fhirDecorators."init_interactions"($this)
 
 	quit ##super(pStrategy)
 }
@@ -54,6 +48,12 @@ Method OnBeforeRequest(
 	pTimeout As %Integer)
 {
 	// OnBeforeRequest is called before each request is processed.
+	// Create a fresh per-request RequestContext (with interactions already set)
+	// before any Python handler runs.  This guarantees a clean slate and means
+	// handlers never need to create or replace the context themselves.
+	set fhirDecorators = ##class(%SYS.Python).Import("iris_fhir_python_strategy")
+	do fhirDecorators."begin_request"($this)
+
 	// Call all registered before_request handlers
 	if $ISOBJECT(..PythonClass) {
 		set requestMethod = pFHIRRequest.RequestMethod
@@ -67,16 +67,21 @@ Method OnBeforeRequest(
 		
 		set specificHandlers = ##class(%SYS.Python).None()
 
-		if (requestMethod = "POST") && (resourceType '= "") {
-			set specificHandlers = ..PythonClass."get_on_before_create_handlers"(resourceType)
-		} elseif (requestMethod = "PUT") && (resourceType '= "") {
-			set specificHandlers = ..PythonClass."get_on_before_update_handlers"(resourceType)
-		} elseif (requestMethod = "DELETE") && (resourceType '= "") {
-			set specificHandlers = ..PythonClass."get_on_before_delete_handlers"(resourceType)
-		} elseif (interaction = "read") && (resourceType '= "") {
-			set specificHandlers = ..PythonClass."get_on_before_read_handlers"(resourceType)
-		} elseif (interaction = "search-type") && (resourceType '= "") {
-			set specificHandlers = ..PythonClass."get_on_before_search_handlers"(resourceType)
+		// Only route CRUD lifecycle handlers for non-operation requests.
+		// FHIR custom operations (interaction = "operation") must never
+		// trigger on_before_create / on_before_update / on_before_delete.
+		if (interaction '= "operation") {
+			if (requestMethod = "POST") && (resourceType '= "") {
+				set specificHandlers = ..PythonClass."get_on_before_create_handlers"(resourceType)
+			} elseif (requestMethod = "PUT") && (resourceType '= "") {
+				set specificHandlers = ..PythonClass."get_on_before_update_handlers"(resourceType)
+			} elseif (requestMethod = "DELETE") && (resourceType '= "") {
+				set specificHandlers = ..PythonClass."get_on_before_delete_handlers"(resourceType)
+			} elseif (interaction = "read") && (resourceType '= "") {
+				set specificHandlers = ..PythonClass."get_on_before_read_handlers"(resourceType)
+			} elseif (interaction = "search-type") && (resourceType '= "") {
+				set specificHandlers = ..PythonClass."get_on_before_search_handlers"(resourceType)
+			}
 		}
 
 		if (specificHandlers '= ##class(%SYS.Python).None()) && (specificHandlers."__len__"() > 0) {
@@ -120,6 +125,7 @@ Method OnAfterRequest(
 	if $ISOBJECT(..PythonClass) {
 		set requestMethod = pFHIRRequest.RequestMethod
 		set resourceType = pFHIRRequest.Type
+		set interaction = pFHIRRequest.Interaction
 		set hasHandlers = 0
 
 		set handlers = ..PythonClass."get_on_after_request_handlers"()
@@ -128,12 +134,15 @@ Method OnAfterRequest(
 		}
 
 		set specificHandlers = ##class(%SYS.Python).None()
-		if (requestMethod = "POST") && (resourceType '= "") {
-			set specificHandlers = ..PythonClass."get_on_after_create_handlers"(resourceType)
-		} elseif (requestMethod = "PUT") && (resourceType '= "") {
-			set specificHandlers = ..PythonClass."get_on_after_update_handlers"(resourceType)
-		} elseif (requestMethod = "DELETE") && (resourceType '= "") {
-			set specificHandlers = ..PythonClass."get_on_after_delete_handlers"(resourceType)
+		// Mirror the OnBeforeRequest guard: operations never touch CRUD handlers.
+		if (interaction '= "operation") {
+			if (requestMethod = "POST") && (resourceType '= "") {
+				set specificHandlers = ..PythonClass."get_on_after_create_handlers"(resourceType)
+			} elseif (requestMethod = "PUT") && (resourceType '= "") {
+				set specificHandlers = ..PythonClass."get_on_after_update_handlers"(resourceType)
+			} elseif (requestMethod = "DELETE") && (resourceType '= "") {
+				set specificHandlers = ..PythonClass."get_on_after_delete_handlers"(resourceType)
+			}
 		}
 
 		if (specificHandlers '= ##class(%SYS.Python).None()) && (specificHandlers."__len__"() > 0) {
@@ -167,6 +176,11 @@ Method OnAfterRequest(
 	} else {
 		do ##super(pFHIRService, pFHIRRequest, pFHIRResponse)
 	}
+
+	// Clear the per-request RequestContext after all handlers and ##super
+	// have run, so no stale data leaks into the next request on this thread.
+	set fhirDecorators = ##class(%SYS.Python).Import("iris_fhir_python_strategy")
+	do fhirDecorators."end_request"()
 }
 
 Method PostProcessRead(pResourceObject As %DynamicObject) As %Boolean

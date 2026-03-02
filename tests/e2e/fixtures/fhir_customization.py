@@ -1,31 +1,14 @@
-import threading
 from typing import Any, Dict, List, Optional
 
 try:
-    from iris_fhir_python_strategy import fhir
+    from iris_fhir_python_strategy import fhir, get_request_context, get_interactions_context
 except ModuleNotFoundError:
     import sys
     from pathlib import Path
 
     PROJECT_ROOT = Path(__file__).resolve().parents[3]
     sys.path.insert(0, str(PROJECT_ROOT))
-    from iris_fhir_python_strategy import fhir
-
-
-class RequestContext:
-    def __init__(self):
-        self.user = ""
-        self.roles = ""
-        self.last_operation = ""
-
-
-_context_local = threading.local()
-
-
-def get_context():
-    if not hasattr(_context_local, "ctx"):
-        _context_local.ctx = RequestContext()
-    return _context_local.ctx
+    from iris_fhir_python_strategy import fhir, get_request_context, get_interactions_context
 
 
 BLOCKED_PREFIX = "blocked-"
@@ -42,16 +25,16 @@ def remove_account_resource(capability_statement: Dict[str, Any]) -> Dict[str, A
 
 @fhir.on_before_request
 def capture_user_context(fhir_service: Any, fhir_request: Any, body: Dict[str, Any], timeout: int):
-    ctx = get_context()
-    ctx.user = fhir_request.Username
+    ctx = get_request_context()
+    ctx.username = fhir_request.Username
     ctx.roles = fhir_request.Roles
 
 
 @fhir.on_after_request
 def clear_user_context(fhir_service: Any, fhir_request: Any, fhir_response: Any, body: Dict[str, Any]):
-    ctx = get_context()
-    ctx.user = ""
-    ctx.roles = ""
+    # In production end_request() is called by the IRIS bridge after this handler.
+    # This handler is kept for any application-level teardown logic.
+    pass
 
 
 @fhir.on_before_create("Observation")
@@ -113,19 +96,19 @@ def filter_blocked_patient_search(rs: Any, resource_type: str):
 
 @fhir.on_before_create("Patient")
 def record_create(fhir_service: Any, fhir_request: Any, body: Dict[str, Any], timeout: int):
-    ctx = get_context()
+    ctx = get_request_context()
     ctx.last_operation = "create"
 
 
 @fhir.on_before_update("Patient")
 def record_update(fhir_service: Any, fhir_request: Any, body: Dict[str, Any], timeout: int):
-    ctx = get_context()
+    ctx = get_request_context()
     ctx.last_operation = "update"
 
 
 @fhir.on_before_delete("Patient")
 def record_delete(fhir_service: Any, fhir_request: Any, body: Dict[str, Any], timeout: int):
-    ctx = get_context()
+    ctx = get_request_context()
     ctx.last_operation = "delete"
 
 
@@ -142,10 +125,45 @@ def echo_operation(operation_name: str, operation_scope: str, body: Dict[str, An
     return fhir_response
 
 
+@fhir.operation("context-info", scope="Type", resource_type="Patient")
+def context_info_operation(
+    operation_name: str, operation_scope: str, body: Dict[str, Any],
+    fhir_service: Any, fhir_request: Any, fhir_response: Any
+):
+    """
+    Diagnostic operation used by e2e tests to inspect context state.
+
+    Returns a Parameters resource with:
+    - request_username        : ctx.username set by capture_user_context
+    - request_roles           : ctx.roles set by capture_user_context
+    - request_last_operation  : ctx.last_operation set by record_create/update/delete
+    - interactions_available  : True when begin_request injected the IRIS $this ref
+    - service_call_count      : incremented on the InteractionsContext each call,
+                                proving the service-level context persists across requests
+    """
+    ctx  = get_request_context()
+    ictx = get_interactions_context()
+
+    # Increment a persistent counter on the service-level context.
+    ictx.context_info_call_count = getattr(ictx, "context_info_call_count", 0) + 1
+
+    fhir_response.Json = {
+        "resourceType": "Parameters",
+        "parameter": [
+            {"name": "request_username",       "valueString":  ctx.username},
+            {"name": "request_roles",          "valueString":  ctx.roles},
+            {"name": "request_last_operation", "valueString":  getattr(ctx, "last_operation", "")},
+            {"name": "interactions_available", "valueBoolean": ictx.interactions is not None},
+            {"name": "service_call_count",     "valueInteger": ictx.context_info_call_count},
+        ],
+    }
+    return fhir_response
+
+
 @fhir.oauth_set_instance
 def set_oauth_instance(token_string: str, oauth_client: Any, base_url: str, username: str):
-    ctx = get_context()
-    ctx.user = username
+    ctx = get_request_context()
+    ctx.username = username
 
 
 @fhir.oauth_get_introspection

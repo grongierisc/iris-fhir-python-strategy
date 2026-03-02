@@ -2,17 +2,15 @@ from types import SimpleNamespace
 
 import pytest
 
+from iris_fhir_python_strategy import request_context, get_request_context
 from tests.e2e.fixtures import fhir_customization as fc
 
 
 @pytest.fixture(autouse=True)
-def reset_context():
-    ctx = fc.get_context()
-    ctx.user = ""
-    ctx.roles = ""
-    yield
-    ctx.user = ""
-    ctx.roles = ""
+def isolated_context():
+    """Each test runs inside a clean, isolated RequestContext."""
+    with request_context():
+        yield
 
 
 @pytest.mark.unit
@@ -34,8 +32,8 @@ def test_capture_user_context(fake_fhir_request):
     request = fake_fhir_request(username="alice", roles="doctor")
     fc.capture_user_context(SimpleNamespace(), request, None, None)
 
-    ctx = fc.get_context()
-    assert ctx.user == "alice"
+    ctx = get_request_context()
+    assert ctx.username == "alice"
     assert ctx.roles == "doctor"
 
 

@@ -6,46 +6,39 @@ Simply import fhir and decorate your functions.
 """
 
 import json
-import threading
 from typing import Any, Dict, List, Optional
 
 try:
-    from iris_fhir_python_strategy import fhir,dynamic_object_from_json,FhirDecorators
-
+    from iris_fhir_python_strategy import (
+        fhir,
+        dynamic_object_from_json,
+        FhirDecorators,
+        get_request_context,
+        get_interactions_context,
+    )
 except ModuleNotFoundError:
     import sys
     from pathlib import Path
 
     PROJECT_ROOT = Path(__file__).resolve().parents[1]
-    sys.path.insert(0, str(PROJECT_ROOT / "src" / "python"))
-    from iris_fhir_python_strategy import fhir,dynamic_object_from_json
+    sys.path.insert(0, str(PROJECT_ROOT))
+    from iris_fhir_python_strategy import (
+        fhir,
+        dynamic_object_from_json,
+        get_request_context,
+        get_interactions_context,
+    )
 
-# ==================== State Management ====================
-# Use a simple class to manage request-scoped state
-class RequestContext:
-    """Stores request-scoped data."""
-    def __init__(self):
-        self.requesting_user = ""
-        self.requesting_roles = ""
-        self.scope_list = []
-        self.security_list = []
-        self.interactions = None  # Will be set by ObjectScript
-        self.token_string = ""
-        self.oauth_client = ""
-        self.base_url = ""
-        self.username = ""
-
-_request_context_local = threading.local()
-
-
-def get_request_context():
-    if not hasattr(_request_context_local, "ctx"):
-        _request_context_local.ctx = RequestContext()
-    return _request_context_local.ctx
-
-
-def set_request_context(ctx):
-    _request_context_local.ctx = ctx
+# ==================== Service-level initialisation ====================
+# get_interactions_context() returns the singleton that lives for the
+# lifetime of the IRIS process.  Store expensive objects here once:
+#
+#   ictx = get_interactions_context()
+#   ictx.http_client = requests.Session()
+#   ictx.config = json.load(open("/irisdev/app/config.json"))
+#
+# The IRIS bridge calls init_interactions($this) in %OnNew so the
+# .interactions attribute is always set before any handler runs.
 
 
 # ==================== Capability Statement ====================
@@ -67,16 +60,16 @@ def customize_capability_statement(capability_statement: Dict[str, Any]) -> Dict
 @fhir.on_before_request
 def extract_user_context(fhir_service: Any, fhir_request: Any, body: Dict[str, Any], timeout: int):
     """
-    Extract user and roles for consent evaluation.
+    Populate the per-request context with user identity.
+
+    begin_request() has already been called by the IRIS bridge before this
+    handler runs, so get_request_context() returns a clean, fresh context
+    with .interactions already set.  Simply fill in the fields you need.
     """
-    ctx = RequestContext()
-    ctx.requesting_user = fhir_request.Username
-    ctx.requesting_roles = fhir_request.Roles
-    ctx.scope_list = []
-    ctx.security_list = []
-    set_request_context(ctx)
-    
-    # Uncomment to extract OAuth token scopes
+    ctx = get_request_context()
+    ctx.username = fhir_request.Username
+    ctx.roles    = fhir_request.Roles
+    # Uncomment to extract OAuth token scopes:
     # token = fhir_request.AdditionalInfo.GetAt("USER:OAuthToken") or ""
     # if token:
     #     import jwt
@@ -84,14 +77,6 @@ def extract_user_context(fhir_service: Any, fhir_request: Any, body: Dict[str, A
     #     ctx.scope_list = decoded_token.get("scope", "").split(" ")
     #     for scope in ctx.scope_list:
     #         ctx.security_list += get_security(scope)
-
-
-@fhir.on_after_request
-def cleanup_context(fhir_service: Any, fhir_request: Any, fhir_response: Any, body: Dict[str, Any]):
-    """
-    Clear request-scoped state.
-    """
-    set_request_context(RequestContext())
 
 
 # ==================== Read/Search Processing ====================
@@ -324,8 +309,8 @@ def verify_patient_deletion(resource_type: str, resource_id: str, required_privi
     """
     ctx = get_request_context()
     # Example: Only admins can delete patients
-    if "admin" not in ctx.requesting_roles.lower():
-        raise PermissionError("Only administrators can delete Patient resources")
+    if "admin" not in ctx.roles.lower():
+        raise PermissionError("Only admins can delete Patient resources")
 
 
 @fhir.oauth_verify_search("Patient")
@@ -351,7 +336,7 @@ def verify_system_access() -> bool:
     """
     ctx = get_request_context()
     # Example: Only system administrators can perform system-level operations
-    if "system-admin" not in ctx.requesting_roles.lower():
+    if "system-admin" not in ctx.roles.lower():
         raise PermissionError("System-level operations require system-admin role")
 
 
