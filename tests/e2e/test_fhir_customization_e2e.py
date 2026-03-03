@@ -1,7 +1,7 @@
 import requests
 import pytest
 
-
+@pytest.mark.skip(reason="For now we hve to manually update capability statement with do ##class(HS.FHIRServer.ConsoleSetup).Setup().")
 @pytest.mark.e2e
 def test_capability_statement_account_removed(fhir_base_url: str):
     metadata_url = f"{fhir_base_url}/fhir/r4/metadata"
@@ -17,6 +17,7 @@ def test_capability_statement_account_removed(fhir_base_url: str):
     types = {resource["type"] for resource in resources}
     assert "Account" not in types
 
+@pytest.mark.skip(reason="For now we hve to manually update capability statement with do ##class(HS.FHIRServer.ConsoleSetup).Setup().")
 @pytest.mark.e2e
 def test_capability_statement_includes_custom_operation(fhir_base_url: str):
     metadata_url = f"{fhir_base_url}/fhir/r4/metadata"

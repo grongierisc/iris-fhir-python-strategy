@@ -20,6 +20,7 @@ def test_fhir_metadata_via_container(fhir_base_url: str):
     assert response_json is not None, "FHIR metadata endpoint did not respond in time"
     assert response_json.get("resourceType") == "CapabilityStatement"
 
+@pytest.mark.skip(reason="For now we hve to manually update capability statement with do ##class(HS.FHIRServer.ConsoleSetup).Setup().")
 @pytest.mark.e2e
 def test_fhir_metadata_missing_account_resource(fhir_base_url: str):
     metadata_url = f"{fhir_base_url}/fhir/r4/metadata"
