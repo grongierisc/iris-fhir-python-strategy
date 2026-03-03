@@ -123,7 +123,7 @@ def filter_patient_search(rs: Any, resource_type: str):
 # ==================== Consent Rules ====================
 
 @fhir.consent("Patient")
-def patient_consent_rules(fhir_object: Dict[str, Any], user_context: Any) -> bool:
+def patient_consent_rules(fhir_object: Dict[str, Any]) -> bool:
     """
     Check if user has consent to access Patient resource.
     """

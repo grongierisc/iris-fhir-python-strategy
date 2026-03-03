@@ -50,7 +50,7 @@ def test_patient_consent_rules_reads_security_list():
     ctx.security_list = ["S"]
 
     resource = {"meta": {"security": [{"code": "S"}]}}
-    assert ex.patient_consent_rules(resource, {}) is False
+    assert ex.patient_consent_rules(resource) is False
 
 
 @pytest.mark.unit

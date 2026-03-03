@@ -95,10 +95,10 @@ def test_operation_structure_for_objectscript():
     fhir = FhirDecorators()
 
     @fhir.operation("op1", scope="System")
-    def op1(): pass
+    def op1(name, scope, body, service, request, response): pass
 
     @fhir.operation("op2", scope="Type", resource_type="Patient")
-    def op2(): pass
+    def op2(name, scope, body, service, request, response): pass
 
     ops = fhir.get_operations()
     

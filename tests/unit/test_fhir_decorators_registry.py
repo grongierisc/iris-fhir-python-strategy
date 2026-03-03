@@ -77,11 +77,11 @@ def test_operation_resolution_prefers_specific_then_wildcard():
     fhir = FhirDecorators()
 
     @fhir.operation("diff", scope="Instance", resource_type="*")
-    def wildcard_op(*args):
+    def wildcard_op(name, scope, body, service, request, response):
         return "wildcard"
 
     @fhir.operation("diff", scope="Instance", resource_type="Patient")
-    def patient_op(*args):
+    def patient_op(name, scope, body, service, request, response):
         return "patient"
 
     assert fhir.get_operation_handler("diff", "Instance", "Patient") is patient_op
@@ -224,11 +224,11 @@ def test_consent_handlers_include_wildcard():
     fhir = FhirDecorators()
 
     @fhir.consent()
-    def consent_any(resource, user_context):
+    def consent_any(resource):
         return True
 
     @fhir.consent("Patient")
-    def consent_patient(resource, user_context):
+    def consent_patient(resource):
         return True
 
     handlers = fhir.get_consent_handlers("Patient")
@@ -276,7 +276,7 @@ def test_get_operations_returns_copy():
     fhir = FhirDecorators()
 
     @fhir.operation("diff", scope="Instance", resource_type="Patient")
-    def patient_op(*args):
+    def patient_op(name, scope, body, service, request, response):
         return None
 
     operations = fhir.get_operations()

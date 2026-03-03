@@ -92,3 +92,24 @@ def fhir_base_url() -> Generator[str, None, None]:
     if created is not None:
         created.stop()
         created.remove()
+
+
+@pytest.fixture(scope="session")
+def fhir_container(fhir_base_url: str) -> Any:
+    """
+    Return the running Docker container object.
+
+    Depends on ``fhir_base_url`` so that the container is guaranteed to be
+    started before this fixture resolves.  Tests that need to ``exec`` commands
+    inside the container (e.g. to verify Python-level behaviour) can request
+    this fixture alongside ``fhir_base_url``.
+    """
+    docker = pytest.importorskip("docker")
+    client = docker.from_env()
+    image_name = "iris-fhir-python-strategy:latest"
+    container = _find_running_container(client, image_name)
+    assert container is not None, (
+        "Could not find the running IRIS container.  "
+        "Make sure the fhir_base_url fixture has already started it."
+    )
+    return container

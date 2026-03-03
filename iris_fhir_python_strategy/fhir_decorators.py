@@ -20,6 +20,8 @@ Example:
         return True
 """
 
+import functools
+import inspect
 from typing import Callable, Dict, List, Optional, Any
 
 class FhirDecorators:
@@ -65,6 +67,91 @@ class FhirDecorators:
         self._validate_resource_handlers = {}  # {resource_type: [handlers]}
         self._validate_bundle_handlers = []
     
+    # ==================== Arity validation helper ====================
+
+    @staticmethod
+    def _wrap_with_arity_check(func: Callable, decorator_name: str, expected: int) -> Callable:
+        """
+        Return a validated callable to register for *func*.
+
+        Validation is **deferred to call time** so that a bad handler never
+        crashes the application at import/load time.  When the IRIS bridge
+        eventually invokes the handler, a clear ``TypeError`` is raised —
+        producing a proper FHIR OperationOutcome with a meaningful
+        ``diagnostics`` message instead of the cryptic
+        ``<OBJECT DISPATCH> 2603 RunBooleanHandlers+8^FHIR.Python.Helper.1``.
+
+        Rules (functions with ``*args`` are always accepted):
+
+        * **Good signature** — *func* is returned unchanged (zero overhead).
+        * **Too many required args** — a wrapper is returned that raises
+          ``TypeError`` on every call naming the extra required parameters.
+        * **Too few positional slots** — same, naming how many args the bridge
+          passes.
+
+        Optional parameters (those with defaults) are transparent: a handler
+        declared as ``def h(resource, is_in_transaction=False)`` is valid for
+        ``expected=2`` because the bridge always passes both values.
+
+        Parameters
+        ----------
+        func
+            Handler being registered.
+        decorator_name
+            Human-readable decorator name used in the error message.
+        expected
+            Number of positional args the IRIS bridge will pass.
+        """
+        sig = inspect.signature(func)
+
+        # *args accepts any number of positional arguments — always valid.
+        has_var_positional = any(
+            p.kind == inspect.Parameter.VAR_POSITIONAL
+            for p in sig.parameters.values()
+        )
+        if has_var_positional:
+            return func
+
+        positional_params = [
+            p for p in sig.parameters.values()
+            if p.kind in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.POSITIONAL_ONLY,
+            )
+        ]
+        required_positional = [
+            p for p in positional_params
+            if p.default is inspect.Parameter.empty
+        ]
+        required_count = len(required_positional)
+        total_count = len(positional_params)
+
+        if required_count > expected:
+            error_msg = (
+                f"@fhir.{decorator_name} handler '{func.__name__}' requires "
+                f"{required_count} positional argument(s) but the IRIS bridge "
+                f"only passes {expected}. "
+                f"Extra required parameter(s): "
+                f"{[p.name for p in required_positional[expected:]]}. "
+                f"Check the decorator docstring for the expected signature "
+                f"(tip: use get_request_context() for per-request user data)."
+            )
+        elif total_count < expected:
+            error_msg = (
+                f"@fhir.{decorator_name} handler '{func.__name__}' only accepts "
+                f"{total_count} positional argument(s) but the IRIS bridge "
+                f"passes {expected}. "
+                f"Check the decorator docstring for the expected signature."
+            )
+        else:
+            return func  # good signature — register as-is
+
+        @functools.wraps(func)
+        def _bad_signature_wrapper(*args: Any, **kwargs: Any) -> Any:
+            raise TypeError(error_msg)
+
+        return _bad_signature_wrapper
+
     # ==================== Capability Statement ====================
     
     def on_capability_statement(self, func: Callable) -> Callable:
@@ -80,8 +167,9 @@ class FhirDecorators:
                 # Modify capability_statement
                 return capability_statement
         """
-        self._capability_statement_handlers.append(func)
-        return func
+        wrapped = self._wrap_with_arity_check(func, "on_capability_statement", 1)
+        self._capability_statement_handlers.append(wrapped)
+        return wrapped
     
     # ==================== Request/Response Hooks ====================
     
@@ -98,8 +186,9 @@ class FhirDecorators:
                 # Extract user and roles
                 pass
         """
-        self._on_before_request_handlers.append(func)
-        return func
+        wrapped = self._wrap_with_arity_check(func, "on_before_request", 4)
+        self._on_before_request_handlers.append(wrapped)
+        return wrapped
     
     def on_after_request(self, func: Callable) -> Callable:
         """
@@ -114,8 +203,9 @@ class FhirDecorators:
                 # Clean up request-scoped state
                 pass
         """
-        self._on_after_request_handlers.append(func)
-        return func
+        wrapped = self._wrap_with_arity_check(func, "on_after_request", 4)
+        self._on_after_request_handlers.append(wrapped)
+        return wrapped
     
     # ==================== CRUD Operations - Before ====================
     
@@ -127,14 +217,15 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "on_before_create", 4)
             if resource_type is None:
                 key = "__global__"
             else:
                 key = resource_type
             if key not in self._on_before_create_handlers:
                 self._on_before_create_handlers[key] = []
-            self._on_before_create_handlers[key].append(func)
-            return func
+            self._on_before_create_handlers[key].append(wrapped)
+            return wrapped
         return decorator
     
     def on_before_read(self, resource_type: Optional[str] = None) -> Callable:
@@ -145,14 +236,15 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "on_before_read", 4)
             if resource_type is None:
                 key = "__global__"
             else:
                 key = resource_type
             if key not in self._on_before_read_handlers:
                 self._on_before_read_handlers[key] = []
-            self._on_before_read_handlers[key].append(func)
-            return func
+            self._on_before_read_handlers[key].append(wrapped)
+            return wrapped
         return decorator
 
     def on_before_update(self, resource_type: Optional[str] = None) -> Callable:
@@ -163,14 +255,15 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "on_before_update", 4)
             if resource_type is None:
                 key = "__global__"
             else:
                 key = resource_type
             if key not in self._on_before_update_handlers:
                 self._on_before_update_handlers[key] = []
-            self._on_before_update_handlers[key].append(func)
-            return func
+            self._on_before_update_handlers[key].append(wrapped)
+            return wrapped
         return decorator
     
     def on_before_delete(self, resource_type: Optional[str] = None) -> Callable:
@@ -181,14 +274,15 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "on_before_delete", 4)
             if resource_type is None:
                 key = "__global__"
             else:
                 key = resource_type
             if key not in self._on_before_delete_handlers:
                 self._on_before_delete_handlers[key] = []
-            self._on_before_delete_handlers[key].append(func)
-            return func
+            self._on_before_delete_handlers[key].append(wrapped)
+            return wrapped
         return decorator
 
     def on_before_search(self, resource_type: Optional[str] = None) -> Callable:
@@ -199,14 +293,15 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, body: dict, timeout: int) -> None:
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "on_before_search", 4)
             if resource_type is None:
                 key = "__global__"
             else:
                 key = resource_type
             if key not in self._on_before_search_handlers:
                 self._on_before_search_handlers[key] = []
-            self._on_before_search_handlers[key].append(func)
-            return func
+            self._on_before_search_handlers[key].append(wrapped)
+            return wrapped
         return decorator
 
     # ==================== CRUD Operations - After ====================
@@ -219,14 +314,15 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, fhir_response: Any, body: dict) -> None:
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "on_after_create", 4)
             if resource_type is None:
                 key = "__global__"
             else:
                 key = resource_type
             if key not in self._on_after_create_handlers:
                 self._on_after_create_handlers[key] = []
-            self._on_after_create_handlers[key].append(func)
-            return func
+            self._on_after_create_handlers[key].append(wrapped)
+            return wrapped
         return decorator
 
     def on_after_read(self, resource_type: Optional[str] = None) -> Callable:
@@ -237,14 +333,15 @@ class FhirDecorators:
             def handler(resource: dict) -> bool:
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "on_after_read", 1)
             if resource_type is None:
                 key = "__global__"
             else:
                 key = resource_type
             if key not in self._on_after_read_handlers:
                 self._on_after_read_handlers[key] = []
-            self._on_after_read_handlers[key].append(func)
-            return func
+            self._on_after_read_handlers[key].append(wrapped)
+            return wrapped
         return decorator
     
     def on_after_update(self, resource_type: Optional[str] = None) -> Callable:
@@ -255,14 +352,15 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, fhir_response: Any, body: dict) -> None:
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "on_after_update", 4)
             if resource_type is None:
                 key = "__global__"
             else:
                 key = resource_type
             if key not in self._on_after_update_handlers:
                 self._on_after_update_handlers[key] = []
-            self._on_after_update_handlers[key].append(func)
-            return func
+            self._on_after_update_handlers[key].append(wrapped)
+            return wrapped
         return decorator
         
     def on_after_delete(self, resource_type: Optional[str] = None) -> Callable:
@@ -273,14 +371,15 @@ class FhirDecorators:
             def handler(fhir_service: Any, fhir_request: Any, fhir_response: Any, body: dict) -> None:
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "on_after_delete", 4)
             if resource_type is None:
                 key = "__global__"
             else:
                 key = resource_type
             if key not in self._on_after_delete_handlers:
                 self._on_after_delete_handlers[key] = []
-            self._on_after_delete_handlers[key].append(func)
-            return func
+            self._on_after_delete_handlers[key].append(wrapped)
+            return wrapped
         return decorator
 
     def on_after_search(self, resource_type: Optional[str] = None) -> Callable:
@@ -291,14 +390,15 @@ class FhirDecorators:
             def handler(rs: Any, resource_type: str) -> None:
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "on_after_search", 2)
             if resource_type is None:
                 key = "__global__"
             else:
                 key = resource_type
             if key not in self._on_after_search_handlers:
                 self._on_after_search_handlers[key] = []
-            self._on_after_search_handlers[key].append(func)
-            return func
+            self._on_after_search_handlers[key].append(wrapped)
+            return wrapped
         return decorator
     
     # ==================== Convenience Decorators ====================
@@ -314,20 +414,26 @@ class FhirDecorators:
         Args:
             resource_type: Specific resource type or None for all types
         
+        The handler receives only the resource dict as its argument.  Access
+        the current user's identity via :func:`get_request_context`.
+
         Example:
             @fhir.consent("Patient")
-            def patient_consent(fhir_object: dict, user_context: dict) -> bool:
-                # Check if user has access
-                required_clearance = fhir_object.get("meta", {}).get("security", [])
-                user_clearance = user_context.get("clearance", 0)
-                return user_clearance >= required_clearance
+            def patient_consent(fhir_object: dict) -> bool:
+                # Check if user has access to this resource
+                ctx = get_request_context()
+                for sec in fhir_object.get("meta", {}).get("security", []):
+                    if sec.get("code") in ctx.security_list:
+                        return False  # deny access
+                return True
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "consent", 1)
             key = resource_type or "*"
             if key not in self._consent_handlers:
                 self._consent_handlers[key] = []
-            self._consent_handlers[key].append(func)
-            return func
+            self._consent_handlers[key].append(wrapped)
+            return wrapped
         return decorator
     
     # ==================== CRUD Operations ====================
@@ -358,9 +464,10 @@ class FhirDecorators:
                 return fhir_response
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "operation", 6)
             key = (name, scope, resource_type or "*")
-            self._operations[key] = func
-            return func
+            self._operations[key] = wrapped
+            return wrapped
         return decorator
     
     # ==================== Registry Access ====================
@@ -514,8 +621,9 @@ class FhirDecorators:
                 # Custom token setup logic
                 pass
         """
-        self._oauth_set_instance_handlers.append(func)
-        return func
+        wrapped = self._wrap_with_arity_check(func, "oauth_set_instance", 4)
+        self._oauth_set_instance_handlers.append(wrapped)
+        return wrapped
     
     def oauth_get_introspection(self, func: Callable) -> Callable:
         """
@@ -527,8 +635,9 @@ class FhirDecorators:
                 # Return JWT object from introspection
                 return {"active": True, "scope": "patient/*.read"}
         """
-        self._oauth_get_introspection_handlers.append(func)
-        return func
+        wrapped = self._wrap_with_arity_check(func, "oauth_get_introspection", 0)
+        self._oauth_get_introspection_handlers.append(wrapped)
+        return wrapped
     
     def oauth_get_user_info(self, func: Callable) -> Callable:
         """
@@ -540,8 +649,9 @@ class FhirDecorators:
                 # Return dict with user info
                 return {"Username": "john_doe", "Roles": "doctor"}
         """
-        self._oauth_get_user_info_handlers.append(func)
-        return func
+        wrapped = self._wrap_with_arity_check(func, "oauth_get_user_info", 2)
+        self._oauth_get_user_info_handlers.append(wrapped)
+        return wrapped
     
     def oauth_verify_resource_id(self, resource_type: str = "*") -> Callable:
         """
@@ -558,10 +668,11 @@ class FhirDecorators:
                     raise PermissionError("Access denied")
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "oauth_verify_resource_id", 3)
             if resource_type not in self._oauth_verify_resource_id_handlers:
                 self._oauth_verify_resource_id_handlers[resource_type] = []
-            self._oauth_verify_resource_id_handlers[resource_type].append(func)
-            return func
+            self._oauth_verify_resource_id_handlers[resource_type].append(wrapped)
+            return wrapped
         return decorator
     
     def oauth_verify_resource_content(self, resource_type: str = "*") -> Callable:
@@ -579,10 +690,11 @@ class FhirDecorators:
                     raise PermissionError("Access denied")
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "oauth_verify_resource_content", 3)
             if resource_type not in self._oauth_verify_resource_content_handlers:
                 self._oauth_verify_resource_content_handlers[resource_type] = []
-            self._oauth_verify_resource_content_handlers[resource_type].append(func)
-            return func
+            self._oauth_verify_resource_content_handlers[resource_type].append(wrapped)
+            return wrapped
         return decorator
     
     def oauth_verify_history(self, resource_type: str = "*") -> Callable:
@@ -599,10 +711,11 @@ class FhirDecorators:
                 pass
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "oauth_verify_history", 3)
             if resource_type not in self._oauth_verify_history_handlers:
                 self._oauth_verify_history_handlers[resource_type] = []
-            self._oauth_verify_history_handlers[resource_type].append(func)
-            return func
+            self._oauth_verify_history_handlers[resource_type].append(wrapped)
+            return wrapped
         return decorator
     
     def oauth_verify_delete(self, resource_type: str = "*") -> Callable:
@@ -620,10 +733,11 @@ class FhirDecorators:
                     raise PermissionError("Cannot delete this resource")
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "oauth_verify_delete", 3)
             if resource_type not in self._oauth_verify_delete_handlers:
                 self._oauth_verify_delete_handlers[resource_type] = []
-            self._oauth_verify_delete_handlers[resource_type].append(func)
-            return func
+            self._oauth_verify_delete_handlers[resource_type].append(wrapped)
+            return wrapped
         return decorator
     
     def oauth_verify_search(self, resource_type: str = "*") -> Callable:
@@ -641,10 +755,11 @@ class FhirDecorators:
                 pass
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "oauth_verify_search", 5)
             if resource_type not in self._oauth_verify_search_handlers:
                 self._oauth_verify_search_handlers[resource_type] = []
-            self._oauth_verify_search_handlers[resource_type].append(func)
-            return func
+            self._oauth_verify_search_handlers[resource_type].append(wrapped)
+            return wrapped
         return decorator
     
     def oauth_verify_system_level(self, func: Callable) -> Callable:
@@ -658,8 +773,9 @@ class FhirDecorators:
                 if not is_admin():
                     raise PermissionError("System-level access denied")
         """
-        self._oauth_verify_system_level_handlers.append(func)
-        return func
+        wrapped = self._wrap_with_arity_check(func, "oauth_verify_system_level", 0)
+        self._oauth_verify_system_level_handlers.append(wrapped)
+        return wrapped
     
     # OAuth getter methods
     
@@ -763,10 +879,11 @@ class FhirDecorators:
                     }
         """
         def decorator(func: Callable) -> Callable:
+            wrapped = self._wrap_with_arity_check(func, "on_validate_resource", 2)
             if resource_type not in self._validate_resource_handlers:
                 self._validate_resource_handlers[resource_type] = []
-            self._validate_resource_handlers[resource_type].append(func)
-            return func
+            self._validate_resource_handlers[resource_type].append(wrapped)
+            return wrapped
         return decorator
     
     def on_validate_bundle(self, func: Callable) -> Callable:
@@ -809,8 +926,9 @@ class FhirDecorators:
                         "issue": issues,
                     }
         """
-        self._validate_bundle_handlers.append(func)
-        return func
+        wrapped = self._wrap_with_arity_check(func, "on_validate_bundle", 2)
+        self._validate_bundle_handlers.append(wrapped)
+        return wrapped
     
     # Validation getter methods
     

@@ -54,13 +54,13 @@ class TestComprehensiveFeatures:
 
     def test_crud_hooks_registration_specific(self):
         @fhir.on_before_create("Patient")
-        def create_patient(*args): pass
+        def create_patient(service, request, body, timeout): pass
         
         @fhir.on_before_update("Observation")
-        def update_observation(*args): pass
+        def update_observation(service, request, body, timeout): pass
         
         @fhir.on_before_delete("Patient")
-        def delete_patient(*args): pass
+        def delete_patient(service, request, body, timeout): pass
         
         # Test Create
         patient_create = fhir.get_on_before_create_handlers("Patient")
@@ -77,10 +77,10 @@ class TestComprehensiveFeatures:
 
     def test_crud_hooks_wildcard(self):
         @fhir.on_before_create("*") # Explicit Wildcard
-        def create_wildcard(*args): pass
+        def create_wildcard(service, request, body, timeout): pass
         
         @fhir.on_before_create() # Global
-        def create_global(*args): pass
+        def create_global(service, request, body, timeout): pass
         
         # Test generic retrieval
         handlers = fhir.get_on_before_create_handlers("Patient")
@@ -91,13 +91,13 @@ class TestComprehensiveFeatures:
 
     def test_operations_registration(self):
         @fhir.operation("my-op", scope="System")
-        def sys_op(*args): pass
+        def sys_op(name, scope, body, service, request, response): pass
         
         @fhir.operation("my-type-op", scope="Type", resource_type="Patient")
-        def type_op(*args): pass
+        def type_op(name, scope, body, service, request, response): pass
         
         @fhir.operation("my-inst-op", scope="Instance", resource_type="Patient")
-        def inst_op(*args): pass
+        def inst_op(name, scope, body, service, request, response): pass
         
         # Check retrieval
         h1 = fhir.get_operation_handler("my-op", "System")
@@ -112,13 +112,13 @@ class TestComprehensiveFeatures:
 
     def test_read_search_consent_hooks(self):
         @fhir.on_after_read("Patient")
-        def read_pt(*args): pass
+        def read_pt(resource): pass
         
         @fhir.on_after_search("Patient")
-        def search_pt(*args): pass
+        def search_pt(rs, resource_type): pass
         
         @fhir.consent("Patient")
-        def consent_pt(*args): pass
+        def consent_pt(resource): pass
         
         assert len(fhir.get_on_after_read_handlers("Patient")) == 1
         assert len(fhir.get_on_after_search_handlers("Patient")) == 1
@@ -126,7 +126,7 @@ class TestComprehensiveFeatures:
 
     def test_validation_handlers(self):
         @fhir.on_validate_resource("Patient")
-        def validate_pt(res): pass
+        def validate_pt(res, is_in_transaction): pass
         
         handlers = fhir.get_on_validate_resource_handlers("Patient")
         assert len(handlers) == 1
@@ -137,7 +137,7 @@ class TestComprehensiveFeatures:
 
     def test_oauth_handlers(self):
         @fhir.oauth_set_instance
-        def oauth_check(*args): pass
+        def oauth_check(token_string, oauth_client, base_url, username): pass
         
         # Based on file inspection, oauth_set_instance might store to _oauth_set_instance_handlers list or dict
         # Looking at __init__: self._oauth_set_instance_handlers = []
@@ -151,28 +151,28 @@ class TestComprehensiveFeatures:
         execution_order = []
         
         @fhir.on_before_create("Patient")
-        def handler_one(*args):
+        def handler_one(service, request, body, timeout):
             execution_order.append(1)
             
         @fhir.on_before_create("Patient")
-        def handler_two(*args):
+        def handler_two(service, request, body, timeout):
             execution_order.append(2)
             
         handlers = fhir.get_on_before_create_handlers("Patient")
         assert len(handlers) == 2
         
-        # Simulate execution
+        # Simulate execution with mock arguments
         for h in handlers:
-            h()
+            h(None, None, None, None)
             
         assert execution_order == [1, 2]
 
     def test_wildcard_mixed_with_specific(self):
         @fhir.on_before_update() # Global
-        def global_handler(*args): pass
+        def global_handler(service, request, body, timeout): pass
         
         @fhir.on_before_update("Patient") # Specific
-        def specific_handler(*args): pass
+        def specific_handler(service, request, body, timeout): pass
         
         # Getting Patient handlers
         updated_handlers = fhir.get_on_before_update_handlers("Patient")
