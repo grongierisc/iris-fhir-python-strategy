@@ -39,10 +39,27 @@ Method ValidateResource(
 		
 		set resourceType = pResourceObject.resourceType
 
-		// convert pResourceObject to Python object
 		set jsonLib = ##class(%SYS.Python).Import("json")
-		set resourceJson = pResourceObject.%ToJSON()
-		set resourcePyObj = jsonLib.loads(resourceJson)
+		try {
+			set jsonStr = pResourceObject.%ToJSON()
+			set resourcePyObj = jsonLib.loads(jsonStr)
+		} catch ex {
+			do ##class(%SYS.System).WriteToConsoleLog("ResourceValidator.ValidateResource: catch ex="_ex.DisplayString(), 0, "FHIR.Python")
+			if (ex.Name '= "<MAXSTRING>") && (ex.Name '= "<STRINGSTACK>") throw ex
+			try {
+				set io = ##class(%SYS.Python).Import("io")
+				set jsonStream = ##class(%Stream.TmpCharacter).%New()
+				do pResourceObject.%ToJSON(jsonStream)
+				do jsonStream.Rewind()
+				set pyStream = io.StringIO()
+				while 'jsonStream.AtEnd { do pyStream.write(jsonStream.Read(32000)) }
+				do pyStream.seek(0)
+				set resourcePyObj = jsonLib.load(pyStream)
+			} catch exStream {
+				do ##class(%SYS.System).WriteToConsoleLog("ResourceValidator.ValidateResource: stream fallback failed - "_exStream.DisplayString(), 2, "FHIR.Python")
+				throw exStream
+			}
+		}
 
 		set handlers = registry."get_on_validate_resource_handlers"(resourceType)
 
@@ -80,10 +97,27 @@ Method ValidateObject(
     set registry = ..GetRegistry()
 
 	set resourceType = pFHIRTypename
-	// convert pFHIRObject to Python object
 	set jsonLib = ##class(%SYS.Python).Import("json")
-	set resourceJson = pFHIRObject.%ToJSON()
-	set resourcePyObj = jsonLib.loads(resourceJson)
+	try {
+		set jsonStr = pFHIRObject.%ToJSON()
+		set resourcePyObj = jsonLib.loads(jsonStr)
+	} catch ex {
+		do ##class(%SYS.System).WriteToConsoleLog("ResourceValidator.ValidateObject: catch ex="_ex.DisplayString(), 0, "FHIR.Python")
+		if (ex.Name '= "<MAXSTRING>") && (ex.Name '= "<STRINGSTACK>") throw ex
+		try {
+			set io = ##class(%SYS.Python).Import("io")
+			set jsonStream = ##class(%Stream.TmpCharacter).%New()
+			do pFHIRObject.%ToJSON(jsonStream)
+			do jsonStream.Rewind()
+			set pyStream = io.StringIO()
+			while 'jsonStream.AtEnd { do pyStream.write(jsonStream.Read(32000)) }
+			do pyStream.seek(0)
+			set resourcePyObj = jsonLib.load(pyStream)
+		} catch exStream {
+			do ##class(%SYS.System).WriteToConsoleLog("ResourceValidator.ValidateObject: stream fallback failed - "_exStream.DisplayString(), 2, "FHIR.Python")
+			throw exStream
+		}
+	}
 	set pyBuiltins = ##class(%SYS.Python).Import("builtins")
 	if pyBuiltins.hasattr(registry, "get_validate_object_handlers") {
 		set handlers = registry."get_validate_object_handlers"(resourceType)
