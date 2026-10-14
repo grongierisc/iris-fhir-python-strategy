@@ -21,8 +21,8 @@ services:
     image: containers.intersystems.com/intersystems/webgateway:latest-em
     init: true
     ports:
-    - 443:443
-    - 8081:80
+    - 6443:443
+    - 8083:80
     environment:
     - ISC_CSP_CONF_FILE=/webgateway/CSP.conf
     - ISC_CSP_INI_FILE=/webgateway/CSP.ini
