@@ -1,15 +1,11 @@
+import os
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Generator, Optional
 
 import pytest
-
-
-def _find_running_container(client: Any, image_name: str) -> Optional[Any]:
-    for container in client.containers.list():
-        if image_name in (container.image.tags or []):
-            return container
-    return None
+import requests
 
 
 def _get_host_port(container: Any, container_port: int) -> Optional[str]:
@@ -27,7 +23,7 @@ def _run_restart_script(container: Any) -> None:
         stderr=True,
         user="irisowner",
     )
-    if result.exit_code != 0:
+    if result.exit_code != 0 or b"FHIR RESTART OK" not in result.output:
         raise RuntimeError(result.output.decode("utf-8", errors="replace"))
 
 def _container_has_env(container: Any, key: str, value: str) -> bool:
@@ -36,12 +32,13 @@ def _container_has_env(container: Any, key: str, value: str) -> bool:
 
 
 @pytest.fixture(scope="session")
-def fhir_base_url() -> Generator[str, None, None]:
+def _fhir_runtime() -> Generator[tuple[Any, str], None, None]:
     docker = pytest.importorskip("docker")
     client = docker.from_env()
 
-    image_name = "iris-fhir-python-strategy:latest"
-    running = _find_running_container(client, image_name)
+    image_name = os.environ.get("FHIR_TEST_IMAGE", "iris-fhir-python-strategy:latest")
+    selected = os.environ.get("FHIR_TEST_CONTAINER")
+    running = client.containers.get(selected) if selected else None
     created = None
 
     if running is not None:
@@ -51,11 +48,8 @@ def fhir_base_url() -> Generator[str, None, None]:
             not _container_has_env(running, "FHIR_CUSTOMIZATION_PATH", desired_path)
             or not _container_has_env(running, "FHIR_CUSTOMIZATION_MODULE", desired_module)
         ):
-            running.stop()
-            running.remove()
-            running = None
-        else:
-            _run_restart_script(running)
+            client.close()
+            raise RuntimeError("Selected FHIR_TEST_CONTAINER has incompatible customization settings")
 
 
     if running is None:
@@ -64,52 +58,64 @@ def fhir_base_url() -> Generator[str, None, None]:
             image_name,
             detach=True,
             environment={
-                "ISC_CPF_MERGE_FILE": "/irisdev/app/merge.cpf",
                 "FHIR_CUSTOMIZATION_PATH": "/irisdev/app/tests/e2e/fixtures/",
                 "FHIR_CUSTOMIZATION_MODULE": "fhir_customization",
             },
-            ports={"52773/tcp": 8082},
+            ports={"52773/tcp": None},
             volumes={str(repo_root): {"bind": "/irisdev/app", "mode": "rw"}},
-            name="iris-fhir-python-strategy-iris-1",
+            name=f"iris-fhir-python-strategy-test-{uuid.uuid4().hex[:12]}",
         )
         running = created
 
-    host_port = _get_host_port(running, 52773)
-    assert host_port, "Running container does not expose 52773/tcp"
+    try:
+        deadline = time.time() + 600
+        while time.time() < deadline:
+            running.reload()
+            if running.status == "running":
+                break
+            if running.status in ("exited", "dead"):
+                raise RuntimeError(running.logs().decode("utf-8", errors="replace"))
+            time.sleep(1)
+        else:
+            raise RuntimeError(
+                "FHIR test container did not become ready:\n"
+                + running.logs(tail=80).decode("utf-8", errors="replace")
+            )
 
-    deadline = time.time() + 120
-    while time.time() < deadline:
-        running.reload()
-        if running.status == "running":
-            break
-        time.sleep(1)
-
-    if created is not None:
+        host_port = _get_host_port(running, 52773)
+        assert host_port, "Running container does not expose 52773/tcp"
+        base_url = f"http://localhost:{host_port}"
+        deadline = time.time() + 600
+        while time.time() < deadline:
+            try:
+                response = requests.get(f"{base_url}/fhir/r4/metadata", timeout=5)
+            except (requests.ConnectionError, requests.Timeout):
+                time.sleep(1)
+                continue
+            if response.status_code == 200:
+                break
+            time.sleep(1)
+        else:
+            raise RuntimeError(
+                "FHIR test endpoint did not become responsive:\n"
+                + running.logs(tail=80).decode("utf-8", errors="replace")
+            )
         _run_restart_script(running)
+        response = requests.get(f"{base_url}/fhir/r4/metadata", timeout=30)
+        if response.status_code != 200:
+            raise RuntimeError(f"FHIR metadata failed after compilation: {response.status_code}: {response.text}")
+        yield running, base_url
+    finally:
+        if created is not None:
+            created.stop()
+            created.remove()
+        client.close()
 
-    yield f"http://localhost:{host_port}"
-
-    if created is not None:
-        created.stop()
-        created.remove()
+@pytest.fixture(scope="session")
+def fhir_base_url(_fhir_runtime: tuple[Any, str]) -> str:
+    return _fhir_runtime[1]
 
 
 @pytest.fixture(scope="session")
-def fhir_container(fhir_base_url: str) -> Any:
-    """
-    Return the running Docker container object.
-
-    Depends on ``fhir_base_url`` so that the container is guaranteed to be
-    started before this fixture resolves.  Tests that need to ``exec`` commands
-    inside the container (e.g. to verify Python-level behaviour) can request
-    this fixture alongside ``fhir_base_url``.
-    """
-    docker = pytest.importorskip("docker")
-    client = docker.from_env()
-    image_name = "iris-fhir-python-strategy:latest"
-    container = _find_running_container(client, image_name)
-    assert container is not None, (
-        "Could not find the running IRIS container.  "
-        "Make sure the fhir_base_url fixture has already started it."
-    )
-    return container
+def fhir_container(_fhir_runtime: tuple[Any, str]) -> Any:
+    return _fhir_runtime[0]

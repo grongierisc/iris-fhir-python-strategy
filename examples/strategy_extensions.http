@@ -1,0 +1,43 @@
+@baseUrl = http://localhost:8083/fhir/r4
+@runId = replace-with-fresh-id
+
+### Create source (201 for a fresh runId)
+PUT {{baseUrl}}/Patient/{{runId}}-source
+Content-Type: application/fhir+json
+Prefer: return=representation
+
+{"resourceType":"Patient","id":"{{runId}}-source","active":true,"identifier":[{"system":"urn:example:merge","value":"{{runId}}-source"}]}
+
+### Create target
+PUT {{baseUrl}}/Patient/{{runId}}-target
+Content-Type: application/fhir+json
+Prefer: return=representation
+
+{"resourceType":"Patient","id":"{{runId}}-target","active":true,"identifier":[{"system":"urn:example:merge","value":"{{runId}}-target"}]}
+
+### Preview (200 Parameters; no stored version changes)
+POST {{baseUrl}}/Patient/$merge
+Content-Type: application/fhir+json
+
+{"resourceType":"Parameters","parameter":[{"name":"source-patient","valueReference":{"reference":"Patient/{{runId}}-source"}},{"name":"target-patient","valueReference":{"reference":"Patient/{{runId}}-target"}},{"name":"preview","valueBoolean":true}]}
+
+### Commit (200; both Patients become version 2)
+POST {{baseUrl}}/Patient/$merge
+Content-Type: application/fhir+json
+
+{"resourceType":"Parameters","parameter":[{"name":"source-patient","valueReference":{"reference":"Patient/{{runId}}-source"}},{"name":"target-patient","valueReference":{"reference":"Patient/{{runId}}-target"}}]}
+
+### Patch target in transaction (200 transaction-response; target version 3)
+POST {{baseUrl}}
+Content-Type: application/fhir+json
+Prefer: return=representation
+
+{"resourceType":"Bundle","type":"transaction","entry":[{"request":{"method":"PATCH","url":"Patient/{{runId}}-target","ifMatch":"W/\"2\""},"resource":{"resourceType":"Parameters","parameter":[{"name":"operation","part":[{"name":"type","valueCode":"replace"},{"name":"path","valueString":"Patient.active"},{"name":"value","valueBoolean":false}]}]}}]}
+
+### Read-back: active=false, both identifiers, replaces link, version 3
+GET {{baseUrl}}/Patient/{{runId}}-target
+Accept: application/fhir+json
+
+### Merged source $everything (400; follow replaced-by)
+GET {{baseUrl}}/Patient/{{runId}}-source/$everything
+Accept: application/fhir+json

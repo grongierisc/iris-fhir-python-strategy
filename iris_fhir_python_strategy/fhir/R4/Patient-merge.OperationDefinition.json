@@ -1,0 +1,26 @@
+{
+  "resourceType": "OperationDefinition",
+  "id": "Patient-merge-r4",
+  "url": "https://github.com/grongierisc/iris-fhir-strategy-merge-operator/OperationDefinition/Patient-merge-r4",
+  "version": "1.0.0",
+  "name": "PatientMergeR4Backport",
+  "title": "Patient merge: R5 operation backported to R4",
+  "status": "active",
+  "kind": "operation",
+  "description": "Synchronous, transactionally atomic backport of the published R5 Patient $merge operation. Retains the inactive source Patient and discovers resources using native Patient $everything. References outside that scope may remain unchanged. Unsupported discovered references and oversized merges are rejected without writes. No custom merge lock or concurrent-write isolation guarantee.",
+  "affectsState": true,
+  "code": "merge",
+  "resource": ["Patient"],
+  "system": false,
+  "type": true,
+  "instance": false,
+  "parameter": [
+    {"name": "source-patient", "use": "in", "min": 0, "max": "1", "type": "Reference", "targetProfile": ["http://hl7.org/fhir/StructureDefinition/Patient"]},
+    {"name": "source-patient-identifier", "use": "in", "min": 0, "max": "*", "type": "Identifier"},
+    {"name": "target-patient", "use": "in", "min": 0, "max": "1", "type": "Reference", "targetProfile": ["http://hl7.org/fhir/StructureDefinition/Patient"]},
+    {"name": "target-patient-identifier", "use": "in", "min": 0, "max": "*", "type": "Identifier"},
+    {"name": "result-patient", "use": "in", "min": 0, "max": "1", "type": "Patient"},
+    {"name": "preview", "use": "in", "min": 0, "max": "1", "type": "boolean"},
+    {"name": "return", "use": "out", "min": 1, "max": "1", "type": "Parameters"}
+  ]
+}

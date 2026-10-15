@@ -33,7 +33,7 @@ dependencies = [
 
 
 [tool.setuptools.package-data]
-"*" = ["*.cls"]
+"iris_fhir_python_strategy" = ["cls/**/*.cls", "fhir/**/*.json"]
 
 [tool.setuptools.packages.find]
 exclude = ["tests*","examples*"]

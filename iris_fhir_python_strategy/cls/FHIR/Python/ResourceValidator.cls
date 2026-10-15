@@ -3,6 +3,22 @@ Class FHIR.Python.ResourceValidator Extends (HS.FHIRServer.Util.ResourceValidato
 
 Property Registry As %SYS.Python;
 
+Method ValidateExtensionResource(pResourceObject As %DynamicObject, pIsInTransaction As %Boolean = 0)
+{
+    // Extension engines require schema validation even when decorators replace ordinary validation.
+    do ..ValidateNativeResource(pResourceObject, pIsInTransaction)
+    set registry = ..GetRegistry()
+    set jsonLib = ##class(%SYS.Python).Import("json")
+    set body = jsonLib.loads(pResourceObject.%ToJSON())
+    do ..RunValidationHandlers(registry."get_on_validate_resource_handlers"(pResourceObject.resourceType), body, pIsInTransaction)
+}
+
+Method ValidateNativeResource(pResourceObject As %DynamicObject, pIsInTransaction As %Boolean = 0)
+{
+    set native = ##class(HS.FHIRServer.Util.ResourceValidator).%New(..metaAPI)
+    do native.ValidateResource(pResourceObject, pIsInTransaction)
+}
+
 Method GetRegistry() As %SYS.Python
 {
     if '$IsObject(..Registry) {

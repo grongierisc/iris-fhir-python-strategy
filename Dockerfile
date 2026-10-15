@@ -1,5 +1,5 @@
 ARG IMAGE=containers.intersystems.com/intersystems/irishealth-community:latest-em
-FROM $IMAGE 
+FROM $IMAGE
 
 USER root
 
@@ -34,9 +34,12 @@ COPY --chown=${ISC_PACKAGE_MGRUSER}:${ISC_PACKAGE_IRISGROUP} . /irisdev/app/
 
 # Install the requirements
 RUN pip3 install -r /irisdev/app/requirements.txt --break-system-packages
+RUN pip3 install /irisdev/app --break-system-packages
 
 RUN iris start ${ISC_PACKAGE_INSTANCENAME} && \
 	iris merge ${ISC_PACKAGE_INSTANCENAME} /irisdev/app/merge.cpf && \
-	iris session ${ISC_PACKAGE_INSTANCENAME} < /irisdev/app/iris.script && \
+	iris session ${ISC_PACKAGE_INSTANCENAME} < /irisdev/app/iris.script > /tmp/fhir-python-install.log 2>&1 && \
+	cat /tmp/fhir-python-install.log && \
+	grep -q '^FHIR INSTALL OK$' /tmp/fhir-python-install.log && \
+	rm /tmp/fhir-python-install.log && \
 	iris stop ${ISC_PACKAGE_INSTANCENAME} quietly
-

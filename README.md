@@ -15,6 +15,8 @@ This project provides a bridge between the high-performance InterSystems IRIS FH
 - **Validation**: Custom resource and bundle validation.
 - **OAuth Customization**: Hooks for token introspection and user context.
 - **Two-tier Context Management**: Thread-safe, per-request `RequestContext` and long-lived service-level `InteractionsContext` — no more `threading.local` boilerplate.
+- **Patient Merge**: Synchronous, atomic `POST Patient/$merge`, including write-free preview.
+- **Bundle FHIRPath PATCH**: `Parameters` PATCH entries in transaction and batch bundles.
 
 ## Prerequisites
 
@@ -489,3 +491,191 @@ When a request arrives (e.g., `PUT /Patient/123`), IRIS calls `Interactions.cls`
 - Calls `end_request` → discards the `RequestContext` so nothing leaks to the next request.
 
 > **Note**: FHIR custom operations (`POST /Patient/$my-op`) are **not** routed through CRUD lifecycle handlers (`on_before_create`, etc.) — only through `on_before_request` / `on_after_request` and the matching `@fhir.operation` handler.
+
+## Patient merge and bundle FHIRPath PATCH
+
+Both features are built into `FHIR.Python.InteractionsStrategy`; no second strategy,
+Python decorator, or external strategy dependency is required. The ObjectScript
+engines are adapted from
+[iris-fhir-strategy-merge-operator](https://github.com/grongierisc/iris-fhir-strategy-merge-operator)
+and [iris-fhir-strategy-bundle-patch](https://github.com/grongierisc/iris-fhir-strategy-bundle-patch).
+Their MIT notices are retained in [LICENSE](./LICENSE).
+
+The combined strategy targets **FHIR R4**, with IRIS for Health **2026.1 build
+235U** and `hl7.fhir.r4.core@4.0.1` as its verification baseline. Version-aware R5
+merge definitions are included, but the combined strategy is not certified for R5.
+The patch resolver extends internal `HS.FHIRPath.Impl` and calls a private native
+bundle helper. Re-run the native suite before changing IRIS or FHIR packages.
+
+### Patient `$merge`
+
+Send `POST [base]/Patient/$merge` with a FHIR `Parameters` body:
+
+```json
+{
+  "resourceType": "Parameters",
+  "parameter": [
+    {"name": "source-patient", "valueReference": {"reference": "Patient/source"}},
+    {"name": "target-patient", "valueReference": {"reference": "Patient/target"}},
+    {"name": "preview", "valueBoolean": true}
+  ]
+}
+```
+
+Remove `preview` or set it to `false` to commit. Each Patient must have exactly one
+selector form: a reference, or repeated `source-patient-identifier` /
+`target-patient-identifier` values. Identifier selectors must uniquely and
+consistently identify the same Patient. Optional `result-patient` supplies the
+complete target Patient; it must retain selection identifiers and include a
+`replaces` link to the source. A supplied stale version returns 409.
+
+Success is HTTP 200 `Parameters`, containing `input`, `outcome`, and `result`.
+Preview writes nothing and omits stored version/timestamp fields from its result.
+Commit transfers compatible identifiers, rewrites discovered local Patient
+references, adds reciprocal lineage links, marks the source inactive, and creates
+Provenance. Patients, dependents, Provenance, history, and indexes commit or roll
+back together, including inside an enclosing caller transaction.
+
+Endpoint strategy setting `max_merge_writes` defaults to **1000** and must be an
+integer of at least 3. It counts both Patients, one Provenance, and every changed
+dependent resource. Exactly 1000 is allowed; 1001 is rejected before writes with
+422. Configure this through normal IRIS endpoint strategy settings, not a Python
+environment variable.
+
+Important limits:
+
+- Discovery uses native Patient `$everything`, **not exhaustive reverse-reference
+  discovery**. References outside its scope can remain on the inactive source.
+  Incomplete/paginated discovery is rejected rather than silently truncated.
+- No custom merge lock or concurrent-write isolation is provided. Coordinate
+  competing writes externally when a workflow requires exclusion.
+- Signed affected resources and encountered unsafe versioned/identifier-only
+  source references are rejected. External references and resource history stay
+  unchanged.
+- Full resources are reread for writes; Python read masking operates on copies
+  during access checks and is not persisted as replacement content.
+- Merged source `$everything` returns 400 while its `replaced-by` link exists.
+  Ordinary CRUD can still reference the source, reactivate it, edit its links, or
+  delete it. This is not automatic alias redirection or ongoing lineage enforcement.
+- No asynchronous Task, unmerge, demographic/MPI matching, downstream
+  notifications, or full profile certification is implemented.
+
+An existing matching Python `@fhir.operation(name="merge", scope="Type",
+resource_type="Patient")` (or wildcard resource handler) **takes precedence**.
+Metadata contains one Patient merge entry with the Python definition when
+overridden. Otherwise it references the supplied version-specific native
+OperationDefinition. Python CapabilityStatement handlers still run last.
+
+### FHIRPath PATCH in bundles
+
+Transaction and batch PATCH entries can carry a `Parameters` resource:
+
+```json
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [{
+    "request": {"method": "PATCH", "url": "Patient/target", "ifMatch": "W/\"2\""},
+    "resource": {
+      "resourceType": "Parameters",
+      "parameter": [{
+        "name": "operation",
+        "part": [
+          {"name": "type", "valueCode": "replace"},
+          {"name": "path", "valueString": "Patient.active"},
+          {"name": "value", "valueBoolean": true}
+        ]
+      }]
+    }
+  }]
+}
+```
+
+Supported operations: `add` (`name`, `value`), `insert` (`index`, `value`),
+`delete`, `replace` (`value`), and `move` (`source`, `destination`). Operations
+execute sequentially within each Parameters payload. Indices are zero-based.
+Locations support navigation, `[index]`, `where`, `ofType`, `as`, `first`, `last`,
+`single`, `skip`, `take`, and `tail`; computed/union/`resolve()` destinations are
+rejected. Use logical choice names such as `Observation.value`. Primitive
+metadata moves with its values and parallel arrays remain aligned.
+
+Native conditional targets, `ifMatch`, fullUrl/typed Reference resolution,
+history, and permissions remain in use. A failing transaction entry rolls back
+the whole bundle; batch entries are independent and failures have per-entry
+OperationOutcome. Transaction responses retain input order; batch execution
+order is not guaranteed. Native Binary JSON Patch bundles and standalone JSON
+Patch remain unchanged. **No standalone FHIRPath PATCH media type is added.**
+
+Native restrictions remain: nonempty narrative `text.div` cannot be patched,
+`id` cannot change, and patches to `meta.versionId` / `meta.lastUpdated` are
+ignored. Null/extension-only primitive values and extension-only metadata suffixes
+beyond the value array are unsupported.
+
+### Validation and hooks
+
+New merge/PATCH paths require **native schema checks plus Python validation**,
+even when Python handlers would replace native validation for ordinary requests.
+Warning-only Python outcomes do not bypass schema checks. Python bundle validators
+receive original Parameters entries, not temporary native Binary placeholders.
+Ordinary request validation semantics are unchanged.
+
+Merge uses global request hooks, consent/read checks, and explicit native
+authorization checks; internal writes do not synthesize CRUD callbacks. Native
+recursive bundle entries do not receive another outer request lifecycle. Context
+cleanup runs even when an after-request handler fails. External side effects
+performed by Python handlers are not rolled back by IRIS database transactions.
+
+### Installation and upgrade
+
+Install the Python distribution inside the IRIS Python environment, then compile
+classes and publish definitions for an existing endpoint:
+
+```bash
+python3 -m iris_fhir_python_strategy --namespace FHIRSERVER --endpoint /fhir/r4
+```
+
+Omitting `--endpoint` retains compile-only behavior. The endpoint must already be
+enabled and use `FHIR.Python.InteractionsStrategy`. Publication chooses the
+endpoint's actual FHIR version, fails on incompatible endpoints, refreshes
+metadata, and does not rewrite an unchanged OperationDefinition.
+
+The development image performs installation/publication at build time. To
+refresh host ObjectScript changes in the running development container:
+
+```bash
+docker compose exec -T iris iris session iris < iris.script.restart.fhir
+```
+
+Do not switch an unrelated repository's strategy in place. Existing Python
+repositories keep their strategy key, storage, resources, history, and indexes;
+the upgrade exposes both new features automatically. Back up first, and review
+authorization and Python operation overrides before deployment. Rolling back
+classes/package and refreshing endpoint metadata does **not** undo patient merges
+already committed. The legacy `module.xml` is not a supported ZPM installer.
+
+Runnable examples: [examples/strategy_extensions.http](./examples/strategy_extensions.http).
+Use synthetic resources in a disposable repository and choose fresh IDs.
+
+### Tests
+
+```bash
+docker compose build iris
+python -m pytest tests/unit
+bash tests/run-native.sh
+python -m pytest tests/e2e
+```
+
+The native runner creates/reuses dedicated `/fhir/python-test/r4` and non-HTTP
+test repositories; it restores `^UnitTestRoot` and requires executed tests and
+three passing suites, not just successful compilation. Native tests cover merge
+limits/atomicity, all patch operations, and Python bridge/cross-feature behavior.
+Use a disposable namespace for test data: FHIR deletion retains history.
+
+E2E tests create a separately owned container with a unique name and dynamic
+port, leaving the running development container untouched. Optional
+`FHIR_TEST_CONTAINER` explicitly selects an existing container with the test
+customization environment; an incompatible selection fails instead of replacing
+it. Only containers created by the fixture are stopped/removed at teardown.
+`FHIR_TEST_IMAGE` can select another freshly built image without replacing the
+development image tag. Owned containers use the image's initialized namespace;
+they do not rerun namespace-creation CPF actions during startup.

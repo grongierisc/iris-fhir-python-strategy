@@ -1,11 +1,12 @@
 
     zn "FHIRSERVER"
 
+    set sc=$system.OBJ.LoadDir("/irisdev/app/iris_fhir_python_strategy/cls", "ck", , 1)
+    if $system.Status.IsError(sc) { do $system.Status.DisplayError(sc) halt }
     set fhirVersion="R4"
     set fhirPath="/fhir/r4"
     set strategy="FHIR.Python.InteractionsStrategy"
     zwrite "Enabling FHIR server at path "_fhirPath_" with version "_fhirVersion_" and strategy "_strategy
-    do ##class(HS.FHIRServer.Installer).InstallInstance(fhirPath, strategy, fhirVersion, "", 0)
-    zwrite "#### FHIR Server is enabled ####"
+    try { if '##class(HS.FHIRServer.ServiceInstance).ExistsByUrl(fhirPath) { do ##class(HS.FHIRServer.Installer).InstallInstance(fhirPath, strategy, fhirVersion, "", "", 0) } do ##class(FHIR.Python.Setup).PublishDefinition(fhirPath) write !,"FHIR INSTALL OK",! } catch ex { do $system.Status.DisplayError(ex.AsStatus()) }
 
     halt

@@ -120,6 +120,22 @@ Method OnAfterRequest(
 	pFHIRRequest As HS.FHIRServer.API.Data.Request,
 	pFHIRResponse As HS.FHIRServer.API.Data.Response)
 {
+    set fhirDecorators = ##class(%SYS.Python).Import("iris_fhir_python_strategy")
+    try {
+        do ..RunAfterRequest(pFHIRService, pFHIRRequest, pFHIRResponse)
+        do ##super(pFHIRService, pFHIRRequest, pFHIRResponse)
+    } catch ex {
+        do fhirDecorators."end_request"()
+        throw ex
+    }
+    do fhirDecorators."end_request"()
+}
+
+Method RunAfterRequest(
+	pFHIRService As HS.FHIRServer.API.Service,
+	pFHIRRequest As HS.FHIRServer.API.Data.Request,
+	pFHIRResponse As HS.FHIRServer.API.Data.Response) [ Private ]
+{
 	// OnAfterRequest is called after each request is processed.
 	// Call all registered after_request handlers
 	if $ISOBJECT(..PythonClass) {
@@ -150,7 +166,6 @@ Method OnAfterRequest(
 		}
 		
 		if 'hasHandlers {
-			do ##super(pFHIRService, pFHIRRequest, pFHIRResponse)
 			quit
 		}
 		
@@ -171,16 +186,7 @@ Method OnAfterRequest(
             do ..UpdateDynamicObject(pFHIRResponse.Json, body)
         }
         
-        do ##super(pFHIRService, pFHIRRequest, pFHIRResponse)
-
-	} else {
-		do ##super(pFHIRService, pFHIRRequest, pFHIRResponse)
 	}
-
-	// Clear the per-request RequestContext after all handlers and ##super
-	// have run, so no stale data leaks into the next request on this thread.
-	set fhirDecorators = ##class(%SYS.Python).Import("iris_fhir_python_strategy")
-	do fhirDecorators."end_request"()
 }
 
 Method PostProcessRead(pResourceObject As %DynamicObject) As %Boolean
@@ -244,6 +250,14 @@ Method Read(
 	pVersionId As %String = "") As %DynamicObject
 {
 	return ##super(pResourceType, pResourceId, pVersionId)
+}
+
+Method JSONPatch(pPatchOperations As %DynamicArray, pResourceObj As %DynamicObject) As %Boolean
+{
+    if $IsObject(pPatchOperations), pPatchOperations.%IsA("%DynamicObject"), pPatchOperations.resourceType = "Parameters" {
+        return ##class(FHIR.Python.FHIRPathPatch).Apply(pPatchOperations, pResourceObj, ..strategy.schema, $this)
+    }
+    return ##super(pPatchOperations, pResourceObj)
 }
 
 Method Add(

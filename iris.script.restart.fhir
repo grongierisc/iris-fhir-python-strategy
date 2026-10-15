@@ -1,13 +1,8 @@
 
     zn "FHIRSERVER"
 
-    do $system.OBJ.Load("/irisdev/app/src/cls/FHIR/Python/Interactions.cls", "ck")
-    do $system.OBJ.Load("/irisdev/app/src/cls/FHIR/Python/ResourceValidator.cls", "ck")
-    do $system.OBJ.Load("/irisdev/app/src/cls/FHIR/Python/BundleValidator.cls", "ck")
-    do $system.OBJ.Load("/irisdev/app/src/cls/FHIR/Python/Helper.cls", "ck")
-
-    zn "%SYS"
-
-    do KillAllCSPJobs^%SYS.cspServer2()
+    set sc=$system.OBJ.LoadDir("/irisdev/app/iris_fhir_python_strategy/cls", "ck", , 1)
+    if $system.Status.IsError(sc) { do $system.Status.DisplayError(sc) halt }
+    try { do ##class(FHIR.Python.Setup).PublishDefinition("/fhir/r4") write !,"FHIR RESTART OK",! } catch ex { do $system.Status.DisplayError(ex.AsStatus()) }
 
     halt 

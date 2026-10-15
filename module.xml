@@ -4,7 +4,7 @@
     <Module>
       <Name>iris-fhir-python-strategy</Name>
       <Version>1.0.0</Version>
-      <Description>A strategy strategy for InterSystems IRIS FHIR Server allowing customization via Python decorators.</Description>
+      <Description>Legacy manifest; ZPM installation is not supported. Install the Python distribution and use its namespace installer.</Description>
       <Keywords>fhir, python, customization, strategy</Keywords>
       <Author>
         <Name>Guillaume Rongier</Name>

@@ -346,12 +346,13 @@ ClassMethod UpdateDynamicObject(
         // Copy properties from newObj to pTarget
         set iter = newObj.%GetIterator()
         while iter.%GetNext(.key, .val) {
-            do pTarget.%Set(key, val)
+            set jsonType = newObj.%GetTypeOf(key)
+            if (jsonType = "object") || (jsonType = "array") set jsonType = ""
+            do pTarget.%Set(key, val, jsonType)
         }
     } Catch ex {
-        // Log error to console - this prevents server crash (500)
-        // In real system, consider logging to a global or system log
-        // write !,"Error in UpdateDynamicObject: ", ex.DisplayString()
+        $$$FSLog("Python JSON conversion failed; exception code " _ ex.Code)
+        throw ex
     }
 }
 

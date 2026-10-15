@@ -1,3 +1,5 @@
+Include HS.FHIRServer
+
 Class FHIR.Python.OperationHandler Extends (HS.FHIRServer.Storage.JsonAdvSQL.BuiltInOperations, FHIR.Python.Helper)
 {
 
@@ -20,9 +22,17 @@ ClassMethod AddSupportedOperations(pMap As %DynamicObject)
 {
     // This method is called by BuiltInOperations to add supported operations
     do ##super(pMap)
+    if '$IsObject(pMap.resource.Patient) {
+        set pMap.resource.Patient = []
+    }
+    do pMap.resource.Patient.%Push({"name":"merge","definition":"http://hl7.org/fhir/OperationDefinition/Patient-merge"})
 
     set tPythonClass = ..HelperGetPython()
     if $ISOBJECT(tPythonClass) {
+        set mergeHandler = tPythonClass."get_operation_handler"("merge", "Type", "Patient")
+        if $IsObject(mergeHandler) {
+            set pMap.resource.Patient.%Get(pMap.resource.Patient.%Size()-1).definition = "http://example.com/OperationDefinition/merge"
+        }
         set jsonLib = ##class(%SYS.Python).Import("json")
         set operations = tPythonClass."get_operations"()
         
@@ -59,11 +69,45 @@ ClassMethod AddSupportedOperations(pMap As %DynamicObject)
 				        do resourceOps."%Set"(resourceType, [])
 			        }
 			        set typeOps = resourceOps."%Get"(resourceType)
-			        do typeOps."%Push"({"name": (name), "definition": ("http://example.com/OperationDefinition/"_name)})
+                    if (resourceType = "Patient") && (name = "merge") {
+                        set iterator = typeOps.%GetIterator()
+                        while iterator.%GetNext(.index, .operation) {
+                            if operation.name = "merge" {
+                                set operation.definition = "http://example.com/OperationDefinition/"_name
+                            }
+                        }
+                    } else {
+                        do typeOps."%Push"({"name": (name), "definition": ("http://example.com/OperationDefinition/"_name)})
+                    }
 		        }
 	        }
     	}
     }
+}
+
+ClassMethod FHIRTypeOpMerge(pService As HS.FHIRServer.API.Service, pRequest As HS.FHIRServer.API.Data.Request, pResponse As HS.FHIRServer.API.Data.Response)
+{
+    Try {
+        Set pResponse.Json = ##class(FHIR.Python.PatientMerge).Execute(pService, pRequest)
+        Set pResponse.Status = 200
+    } Catch ex {
+        $$$FSLog("Patient merge failed; exception code " _ ex.Code)
+        Do pService.SetStatusResponse(pResponse, ex.AsStatus())
+        Set pResponse.Json = ##class(FHIR.Python.PatientMerge).Response(pRequest.Json, pResponse.Json)
+    }
+}
+
+ClassMethod FHIRInstanceOpEverything(pService As HS.FHIRServer.API.Service, pRequest As HS.FHIRServer.API.Data.Request, pResponse As HS.FHIRServer.API.Data.Response)
+{
+    If pRequest.Type = "Patient" {
+        Do pService.interactions.oauth2TokenHandler.VerifyResourceIdRequest("Patient", pRequest.Id, "r")
+        Set patient = pService.interactions.Read("Patient", pRequest.Id)
+        Do pService.interactions.oauth2TokenHandler.VerifyResourceContent(patient, "r")
+        If ##class(FHIR.Python.ReferenceUpdater).IsMerged(patient) {
+            $$$ThrowFHIR($$$GeneralError, "Patient was merged; follow replaced-by to access $everything", $$$OutcomeInvalid(400))
+        }
+    }
+    Do ##super(pService, pRequest, pResponse)
 }
 
 /// @API
